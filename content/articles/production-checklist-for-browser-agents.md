@@ -1,92 +1,95 @@
 ---
-title: "A Production Checklist for Browser Agents"
+title: "Production Checklist for Browser Agents"
 id: "production-checklist-for-browser-agents"
-summary: "Use this production checklist to harden browser agents: plan-tier gating, session controls, evidence logging, and recovery rituals that withstand scale."
-canonical_questions: ["a production checklist for browser agents"]
+summary: "Define session ownership, authentication, action policy, evidence, retries, cleanup, and data retention before a browser agent handles production work."
+description: "Define session ownership, authentication, action policy, evidence, retries, cleanup, and data retention before a browser agent handles production work."
+canonical_questions: ["production checklist for browser agents"]
+retrieval_aliases: ["browser agent go live checklist", "production browser automation checklist"]
 intent: "reference"
-entity: "browser-automation"
+entity: "operations"
 audience: "developer"
-schema_type: "Article"
+schema_type: "HowTo"
 visibility: "public"
 ai_visibility: "public"
 llms_priority: "core"
-token_budget: "medium"
-date: "2026-04-01"
-updated: "2026-04-01"
-related: []
-external_refs: []
+token_budget: "full"
+date: "2026-07-13"
+updated: "2026-07-13"
+review_by: "2026-09-13"
+owner: "editorial"
+related: ["sessions", "credentials-api-for-browser-agents", "human-in-the-loop-browser-agents", "why-browser-agents-fail-in-production"]
+external_refs:
+  - "https://docs.steel.dev/overview/sessions-api/session-lifecycle"
+  - "https://docs.steel.dev/overview/credentials-api/overview"
+  - "https://docs.steel.dev/overview/sessions-api/human-in-the-loop"
 type: "article"
-status: "draft"
-canonical_url: "https://steel.dev/blog/production-checklist-for-browser-agents"
-description: "Use this production checklist to harden browser agents: plan-tier gating, session controls, evidence logging, and recovery rituals that withstand scale."
+status: "published"
+draft: false
+canonical_url: "https://answers.steel.dev/articles/production-checklist-for-browser-agents/"
 created: "2026-04-01"
-modified: "2026-04-01"
-tags: [checklist, production, browser, agents]
+modified: "2026-07-13"
+tags: [production, checklist, operations]
+immutable: false
 ---
-You are ready for production when [browser agents](@/glossary/browser-agents.md) survive concurrency, anti-bot pressure, and human review without losing state. That happens only after you wire evidence, approvals, recovery hooks, and plan-tier limits into the run, not when the happy path passes on localhost.
+A production browser agent needs explicit ownership for the session, identity, permitted actions, evidence, and cleanup. Complete this checklist for one workflow before increasing traffic.
 
-This checklist keeps teams honest: it groups the work into prepare, run, and operate stages so you can see what is missing before traffic spikes or an auditor asks for proof.
+## Session lifecycle
 
-## Production checklist
+- [ ] Every session is tied to a task and owner.
+- [ ] The timeout is set to the shortest useful duration.
+- [ ] Session creation failures use bounded backoff.
+- [ ] The worker releases the session in a `finally` path.
+- [ ] Stale-session cleanup is monitored separately from task success.
 
-### 1. Prepare your control plane (before traffic)
+## Authentication and state
 
-| Item | Why it matters | How to verify |
-| --- | --- | --- |
-| Plan tier sized for real load (Steel Local ~1 session, Steel Cloud 100+) | Keeps concurrency, RPS, and proxy budgets aligned with actual workflows instead of starving jobs on day one | Compare target parallel sessions and RPS with `Pricing/Limits`, bake alerts at 80 percent of plan cap |
-| Session lifetime budget (24 hour ceiling, adjustable timeout per run) | Prevents zombie browsers while ensuring long flows finish under the allowed window | Store timeout per workflow, confirm Sessions API `timeout` matches longest job, add release reminder to job teardown |
-| Proxy and CAPTCHA coverage | Most production sites rotate bot defenses faster than shipping cycles | List required regions, confirm managed proxies or BYO pool per region, toggle `solveCaptcha` only where policy allows |
-| Secrets, profiles, and credentials policy | Auth reuse fails without profile storage and credential custody | Decide which runs need Profiles API vs stateless sessions, store credential owner, rotate tokens on schedule |
-| Environment parity | Local Playwright stacks hide TLS, codec, and CPU limits that show up in Steel Cloud | Rebuild representative workflows against Steel sessions weekly, diff telemetry vs local |
+- [ ] Credentials are stored outside prompts and source control.
+- [ ] Credential namespaces separate identities and environments.
+- [ ] Profile IDs are authorized like authenticated browser state.
+- [ ] The workflow verifies a logged-in marker before acting.
+- [ ] Expired authentication routes to reauthentication or review.
 
-### 2. Run workflows (during execution)
+## Action policy
 
-| Item | Why it matters | How to verify |
-| --- | --- | --- |
-| Stage timers for startup, first action, completion | Latency drift is the first sign you are about to breach SLAs | Emit timers per session lifecycle stage, export scoreboard daily |
-| Selector and action contracts | Fuzzy selectors create nondeterministic failures that hide in retries | Track selectors in version control, gate releases on selector diff review |
-| Manual approval schema (who, why, elapsed) | Every pause is a production incident without context | Store approvals alongside sessions (reason, operator, resumed session ID), alert when manual rate >5 percent |
-| Evidence coverage (logs plus replay for every failure) | Without proof, you cannot debug or satisfy auditors | Require replay URL and agent log link before marking jobs complete, block deploys when evidence coverage <100 percent |
-| Release discipline | Sessions bill until released even if the job failed early | Call `sessions.release` on success paths and `releaseAll` on incident cleanup; monitor orphan count |
+- [ ] Allowed actions are defined independently of the prompt.
+- [ ] External or destructive actions require explicit approval.
+- [ ] Model-produced coordinates and values are validated.
+- [ ] Untrusted page text cannot change system-level policy.
+- [ ] Each action has a success assertion.
 
-### 3. Operate and recover (after execution)
+## Evidence and debugging
 
-| Item | Why it matters | How to verify |
-| --- | --- | --- |
-| Plan-cap saturation watch | Reliability issues often start as exhausted concurrency pools | Alert when any plan metric hits 90 percent, route to the owner who can upgrade or shift load |
-| Replay and log review cadence | Keeps regressions visible instead of tribal memory | Run a 10 minute daily ritual: export segmented scoreboard, sample replays for every red slice, log actions |
-| Retry strategy with idempotency keys | Production retries must not double-charge or re-open tickets | Store workflow ID and attempt count, refuse retries without idempotency metadata |
-| Incident drill and on-call runbook | Agents touch money and accounts; recovery must be muscle memory | Keep an updated playbook with owner, escalation path, and checklist per failure mode |
-| Dependency refresh (proxies, extensions, scripts) | Browser ecosystems drift; stale components are a silent outage | Track versions for anti-detect packages, extensions, and scripts, rotate on schedule |
+- [ ] Task, model-response, and Steel session IDs are stored together.
+- [ ] Operators can access the live viewer through authenticated tooling.
+- [ ] Failed runs retain replay, action logs, and relevant files.
+- [ ] Evidence access and retention match the data classification.
+- [ ] Retries remain linked to the original attempt.
 
-## Red flags you cannot ignore
+## Reliability
 
-| Signal | Why it is dangerous | Action |
-| --- | --- | --- |
-| Failed session without replay or logs | You are blind during the postmortem and cannot prove what happened | Block deploys until evidence exports reach 100 percent again |
-| Manual interventions above 5 percent of runs | Human approvals are masking automation gaps | Add approval reason taxonomy, route top reasons into engineering backlog |
-| Selector churn on every release | Frontend changes are ahead of your maintenance loop | Freeze deploy until selectors are versioned, pair with DOM-change alerts |
-| Idle sessions after workflow ends | You are paying for nothing and leaving state open | Run hourly `releaseAll` sweep, alert when orphan count exceeds 0 |
-| Geo or proxy mismatch | Wrong data or blocked runs despite "success" status | Pin required regions per workflow and audit proxy inventory weekly |
+- [ ] Metrics separate session, navigation, authentication, action, and output failures.
+- [ ] Completion without retry is tracked by workflow.
+- [ ] Human intervention has structured reason codes.
+- [ ] Concurrency and request limits are monitored from current account configuration.
+- [ ] A retry changes a known condition or stops.
 
-## Minimum viable production setup
+## Data handling
 
-- Sessions API client with configurable timeout, proxy, and CAPTCHA params per workflow.
-- Scoreboard export that captures startup, first action, completion, plan-tier utilization, approval rate, and evidence coverage.
-- Structured manual approval and intervention log (operator, reason, resumed session ID, elapsed time).
-- Replay plus agent log storage tied to every failed run before incident close.
-- Release hooks: success path releases specific session, incident path calls `releaseAll` and posts orphan count.
-- Weekly parity run that compares Steel Cloud vs local automation stats, recorded in the artifact folder.
+- [ ] Uploaded and downloaded files are scoped to a task or tenant.
+- [ ] Sensitive screenshots and recordings have an owner and retention period.
+- [ ] Secrets and access-bearing viewer URLs are redacted from logs.
+- [ ] Deletion covers profiles, credentials, files, and copied evidence.
+- [ ] Target-site authorization and usage policy have been reviewed.
 
-## What Steel handles for you
+## Go-live test
 
-- Managed Sessions that start in under a second on Steel Cloud plus Profiles API for state reuse when auth matters.
-- Built-in managed proxies, CAPTCHA solving, and stealth layers so you do not maintain your own anti-bot stack.
-- Live view, replays, and Agent Logs for every session so evidence coverage is achievable.
-- Credentials and Files APIs so sensitive inputs stay vaulted while uploads and downloads remain scriptable.
+Run one representative task through four outcomes:
 
-## Next step
+1. normal completion;
+2. target-site or navigation failure;
+3. authentication expiry;
+4. human rejection at an approval boundary.
 
-Run your workflows against the Sessions API lifecycle doc, confirm every checklist item above has an owner, then cut the first production review using the artifact template you just filled. [Read the session lifecycle](https://docs.steel.dev/overview/sessions-api/session-lifecycle) and wire the release hooks before you add more traffic.
+The workflow is ready when each outcome ends with a released session, a stable result state, and enough evidence to explain what happened.
 
-Humans use Chrome. Agents use Steel.
+Use the [session lifecycle guide](https://docs.steel.dev/overview/sessions-api/session-lifecycle) to verify the create, timeout, and release behavior in your implementation.

@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/steel-cli-for-browser-workflows"
 description: "Steel CLI keeps browser workflows fast by handling session lifecycle, passthrough commands, and agent skills so you debug less code and ship reliable runs."
 created: "2026-03-31"

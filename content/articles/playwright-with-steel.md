@@ -1,128 +1,107 @@
 ---
-title: "Connect Playwright to Steel Without Rewriting Your Stack"
+title: "Connect Playwright to Steel"
 id: "playwright-with-steel"
-summary: "Your Playwright project already knows how to drive Chromium. Point its CDP socket at `wss://connect.steel.dev?apiKey=...` and the same code runs inside Steel's managed browsers with the evidence, proxies, and observability you could not get from local Chrome."
-description: "Your Playwright project already knows how to drive Chromium. Point its CDP socket at `wss://connect.steel.dev?apiKey=...` and the same code runs inside Steel's managed browsers with the evidence, proxies, and observability you could not get from local Chrome."
-canonical_questions: ["connect playwright to steel without rewriting your stack"]
+summary: "Create a Steel session, attach Playwright over CDP, reuse the existing page, and release the session when the run ends."
+description: "Create a Steel session, attach Playwright over CDP, reuse the existing page, and release the session when the run ends."
+canonical_questions: ["how do i use playwright with steel"]
+retrieval_aliases: ["connect playwright to steel", "steel playwright cdp"]
 intent: "reference"
 entity: "integration"
 audience: "developer"
-schema_type: "Article"
+schema_type: "TechArticle"
 visibility: "public"
 ai_visibility: "public"
 llms_priority: "core"
-token_budget: "medium"
-date: "2026-04-01"
-updated: "2026-04-01"
-related: []
-external_refs: []
+token_budget: "full"
+date: "2026-07-13"
+updated: "2026-07-13"
+review_by: "2026-10-13"
+owner: "editorial"
+related: ["cdp", "sessions", "profiles", "why-browser-agents-fail-in-production"]
+external_refs:
+  - "https://docs.steel.dev/integrations/playwright"
+  - "https://docs.steel.dev/overview/sessions-api/quickstart"
 type: "article"
-status: "draft"
-canonical_url: "https://steel.dev/blog/playwright-with-steel"
+status: "published"
+draft: false
+canonical_url: "https://answers.steel.dev/articles/playwright-with-steel/"
 created: "2026-04-01"
-modified: "2026-04-01"
-tags: [playwright, integration, ai-answers]
+modified: "2026-07-13"
+tags: [playwright, integration, cdp]
+immutable: false
 ---
-Your Playwright project already knows how to drive Chromium. Point its [CDP](@/glossary/cdp.md) socket at `wss://connect.steel.dev?apiKey=...` and the same code runs inside Steel's managed browsers with the evidence, [proxies](@/glossary/proxies.md), and observability you could not get from local Chrome.
+Steel exposes each browser session through the Chrome DevTools Protocol. Playwright can attach with `chromium.connectOverCDP()`, so locators, navigation, assertions, and tracing stay in your Playwright process.
 
-Use the one-line swap when Steel's defaults cover you. When you need proxies, [CAPTCHA solving](@/glossary/captcha-solving.md), or named sessions for auditing, create the session through the Steel SDK first, then attach Playwright to that session over CDP and release it when you are done. Either path keeps your existing tests, fixtures, and reporters unchanged.
+## Minimal TypeScript connection
 
-## What stays the same
-- Playwright's test runner, assertions, fixtures, and reporters.
-- Page objects, selectors, and the `page` API surface.
-- Existing CI steps, including environment variables and secrets workflows.
-- Local development loop: you can still run Playwright locally; you only swap the launch line when you want Steel's fleet.
-
-## What Steel adds
-| Job | Without Steel | With Steel |
-| --- | --- | --- |
-| Session startup | Local Chrome plus warmup scripts that often take seconds | Sub-second Steel Cloud sessions that are ready on connect (`chromium.connectOverCDP`) |
-| Long runs | Local browser dies or loses cookies at every CI run | 24-hour managed sessions that preserve auth context while you control resets |
-| Anti-bot handling | DIY proxies, fingerprints, CAPTCHA solves | Managed proxies, stealth, and CAPTCHA solving when you create the session via API |
-| Evidence | Sparse console logs | Live viewer, HLS replays, and retrieved sessions when you pass your own `sessionId` |
-| Scale | Steel Local or DIY infra tops out around one session | Steel Cloud handles hundreds of concurrent sessions per plan and exposes Files, Credentials, and other APIs when you grow |
-
-## Minimal integration path
-**Method 1: One-line change (default settings)**
-1. Keep your existing script.
-2. Swap `chromium.launch()` (or `.launch()` on another browser) for `chromium.connectOverCDP('wss://connect.steel.dev?apiKey=MY_STEEL_API_KEY')`.
-3. Run your suite; Steel starts, records, and releases the session automatically when Playwright closes the browser or the process ends.
-4. Optional: append `&sessionId=<uuid>` so you can query or release the run later via the Steel API.
-
-**Method 2: Create, connect, release (custom features)**
-1. Use the Steel SDK (`steel-sdk` for Node, `steel` for Python) to call `client.sessions.create({ useProxy: true, solveCaptcha: true, ... })`.
-2. Connect Playwright with `chromium.connectOverCDP('wss://connect.steel.dev?apiKey=...&sessionId='+session.id)` so you enter the same browser instance Steel created.
-3. Reuse the provided context (`browser.contexts()[0]` or `browser.contexts[0]`) instead of calling `browser.newContext()` so the run stays in the recorded session.
-4. When finished, close the browser and call `client.sessions.release(session.id)` so the slot frees immediately rather than timing out.
-
-## Example code
-### Node / TypeScript
 ```ts
-import Steel from 'steel-sdk';
-import { chromium } from 'playwright';
-import { config } from 'dotenv';
-config();
-const client = new Steel({ steelAPIKey: process.env.STEEL_API_KEY });
+import { chromium } from "playwright";
+import Steel from "steel-sdk";
 
-async function run() {
-  const session = await client.sessions.create({ useProxy: true, solveCaptcha: true });
-  const browser = await chromium.connectOverCDP(
-    `wss://connect.steel.dev?apiKey=${process.env.STEEL_API_KEY}&sessionId=${session.id}`
+const apiKey = process.env.STEEL_API_KEY!;
+const client = new Steel({ steelAPIKey: apiKey });
+const session = await client.sessions.create({
+  timeout: 900_000,
+});
+
+let browser;
+
+try {
+  browser = await chromium.connectOverCDP(
+    `${session.websocketUrl}&apiKey=${apiKey}`,
   );
-  const page = browser.contexts()[0].pages()[0] ?? (await browser.contexts()[0].newPage());
-  await page.goto('https://news.ycombinator.com');
-  await browser.close();
+
+  const context = browser.contexts()[0];
+  const page = context.pages()[0];
+
+  await page.goto("https://example.com");
+  console.log(await page.title());
+} finally {
+  if (browser) await browser.close();
   await client.sessions.release(session.id);
 }
+```
 
-run().catch((err) => {
-  console.error(err);
-  process.exit(1);
+Install the runtime packages with `npm install steel-sdk playwright`. Store `STEEL_API_KEY` outside source control.
+
+Steel returns a browser context with a page already open. Reusing `browser.contexts()[0].pages()[0]` avoids creating an unnecessary second page and matches the current integration guide.
+
+## Add session options deliberately
+
+Session creation is where you choose infrastructure behavior:
+
+```ts
+const session = await client.sessions.create({
+  timeout: 1_800_000,
+  useProxy: true,
+  solveCaptcha: true,
 });
 ```
 
-### Python
-```python
-import os
-from dotenv import load_dotenv
-from playwright.sync_api import sync_playwright
-from steel import Steel
+Use only the options required by the workflow. Proxy traffic and CAPTCHA solving have policy and cost implications, and a longer timeout holds capacity for longer. The default session timeout is five minutes.
 
-load_dotenv()
-client = Steel(steel_api_key=os.getenv("STEEL_API_KEY"))
+For authenticated workflows, create or reuse a [profile](@/glossary/profiles.md) instead of copying cookies between unrelated runs:
 
-def run():
-    session = client.sessions.create(use_proxy=True, solve_captcha=True)
-    playwright = sync_playwright().start()
-    browser = playwright.chromium.connect_over_cdp(
-        f"wss://connect.steel.dev?apiKey={os.getenv('STEEL_API_KEY')}&sessionId={session.id}"
-    )
-    context = browser.contexts[0]
-    page = context.pages[0] if context.pages else context.new_page()
-    page.goto("https://news.ycombinator.com")
-    browser.close()
-    client.sessions.release(session.id)
-    playwright.stop()
+```ts
+const first = await client.sessions.create({
+  persistProfile: true,
+});
 
-if __name__ == "__main__":
-    run()
+// After releasing first, use first.profileId in a later session.
+const resumed = await client.sessions.create({
+  profileId: first.profileId,
+  persistProfile: true,
+});
 ```
 
-## Trade-offs and guardrails
-- Method 1 always uses Steel's defaults: no proxy, standard fingerprint, CAPTCHA solving off. Use Method 2 whenever the target site needs more stealth.
-- Sessions stay billable until you release them. Always call `sessions.release()` even if your Playwright test failed midway.
-- Stick to the first context returned by Steel. Spinning up a new context launches a second, untracked browser without replays.
-- Steel Local is ideal for development and handles roughly one session at a time. Use Steel Cloud for multi-session CI runs or when you need managed proxies and CAPTCHA solving.
-- Long workflows still need checkpoints: Steel sessions can run up to 24 hours, but you should checkpoint credentials and files via the APIs if the workflow must resume days later.
+Release the first session before loading its persisted profile. Steel saves the profile when the session ends.
 
-## When this fits (and when it does not)
-- Works when you already have Playwright suites and want more reliable browsers, evidence, or anti-bot tooling without touching your test logic.
-- Works when you need to pair browser runs with Credentials, Files, or human-in-the-loop approvals later; the same `sessionId` links every artifact.
-- Not a fit if you only need a one-off static scrape or a single screenshot; Quick Actions or Steel's scraping endpoints are faster for that path.
+## Keep ownership boundaries clear
 
-## Next steps
-- Drop Method 1 into a single spec to validate recordings in the Steel live viewer.
-- Once the swap sticks, upgrade to Method 2 in the specs that need proxies, CAPTCHA solving, or explicit naming, then track those session IDs in your CI logs.
-- Clone the Hacker News starter (`steel-playwright-starter` or `steel-playwright-python-starter`) to copy the full error-handling pattern into your repo.
+Playwright still owns selectors, waits, assertions, and application-specific retry logic. Steel owns the remote browser session and the infrastructure options selected at creation.
 
-Humans use Chrome. Agents use Steel.
+Log `session.id` with the queue or request ID that created it. Keep `session.sessionViewerUrl` available to operators during the run, but treat it as an access-bearing URL.
+
+Close the Playwright connection and release the Steel session in `finally`. Explicit cleanup makes concurrency usage predictable and gives each run a clear lifecycle.
+
+Run the [official Playwright integration](https://docs.steel.dev/integrations/playwright) once unchanged before adding profiles, proxies, or CAPTCHA handling.

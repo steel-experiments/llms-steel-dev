@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-for-healthcare-portals"
 description: "Show healthcare teams how to automate payer and EHR portals with Steel sessions, credentials, files, and replay evidence without breaking auth or audit rules."
 created: "2026-04-01"

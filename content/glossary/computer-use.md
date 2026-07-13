@@ -13,9 +13,11 @@ ai_visibility: "public"
 llms_priority: "core"
 token_budget: "small"
 date: "2026-04-01"
-updated: "2026-04-01"
+updated: "2026-07-13"
+review_by: "2026-10-13"
+owner: "editorial"
 related: []
-external_refs: []
+external_refs: ["https://docs.steel.dev/integrations/openai-computer-use"]
 type: "article"
 status: "published"
 template: "page_glossary.html"

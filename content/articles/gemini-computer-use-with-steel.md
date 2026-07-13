@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/gemini-computer-use-with-steel"
 description: "Connect Gemini Computer Use to Steel sessions for managed browsers, replay-grade observability, and anti-bot help without rebuilding your agent loop today."
 created: "2026-04-01"

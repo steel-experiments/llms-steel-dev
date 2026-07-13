@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/playwright-scripts-pass-locally-fail-in-cloud"
 description: "Diagnose why a Playwright script that passes locally fails in Steel Cloud by aligning runtimes, anti-bot posture, and evidence loops."
 created: "2026-03-31"

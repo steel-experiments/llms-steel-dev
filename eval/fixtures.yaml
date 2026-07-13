@@ -1,11 +1,35 @@
 - question: what is a cloud browser for ai agents
   expected_ids: [what-is-a-cloud-browser-for-ai-agents]
-  forbidden_ids: [internal-support-escalation]
-  required_terms: [sessions, replay, state]
-  rubric_focus: explain cloud browsers for agents in production terms and mention stateful execution or observability
+  forbidden_ids: [internal-support-escalation, browserbase-vs-steel]
+  required_terms: [session, state, replay]
+  rubric_focus: define the managed browser session and explain lifecycle, state, and evidence
 
 - question: how do i use openai computer use with steel
   expected_ids: [openai-computer-use-with-steel]
-  forbidden_ids: [internal-support-escalation]
-  required_terms: [computer use, session, replay]
-  rubric_focus: connect OpenAI Computer Use to Steel sessions without drifting into unrelated framework guidance
+  forbidden_ids: [internal-support-escalation, claude-computer-use-with-steel]
+  required_terms: [computer, session, action]
+  rubric_focus: explain the screenshot and action loop without pinning stale model names
+
+- question: how do i connect playwright to steel
+  expected_ids: [playwright-with-steel]
+  forbidden_ids: [playwright-scripts-pass-locally-fail-in-cloud, puppeteer-with-steel]
+  required_terms: [connectOverCDP, session, release]
+  rubric_focus: show the current CDP connection and explicit session cleanup
+
+- question: how do i keep passwords out of browser agent prompts
+  expected_ids: [credentials-api-for-browser-agents]
+  forbidden_ids: [internal-support-escalation, secure-browser-auth-for-agents]
+  required_terms: [namespace, credentials, prompt]
+  rubric_focus: separate credential storage and injection from application authorization
+
+- question: should i self host steel or use steel cloud
+  expected_ids: [steel-local-vs-steel-cloud]
+  forbidden_ids: [self-hosted-browser-infrastructure-guide, browser-infrastructure-for-ai-agents-compared]
+  required_terms: [self-host, operations, session]
+  rubric_focus: choose based on infrastructure ownership without quoting mutable pricing
+
+- question: how does steel stealth browser avoid bot detection
+  expected_ids: [stealth-browser-vs-vanilla-chromium]
+  forbidden_ids: [internal-support-escalation, browserbase-vs-steel]
+  required_terms: [Chromium, fingerprint, browser]
+  rubric_focus: explain why a hardened Chromium fork beats injected-JS stealth, and name the browser-level signals it reaches, without claiming a bypass

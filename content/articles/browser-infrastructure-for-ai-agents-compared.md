@@ -1,5 +1,5 @@
 ---
-title: "Browser Infrastructure for AI Agents, Compared"
+title: "AI Agent Browser Infrastructure: 5 Options Compared"
 id: "browser-infrastructure-for-ai-agents-compared"
 summary: "Compare Steel, Browserbase, Kernel, Browserless, and Smooth for AI browser infrastructure with benchmarks, trust surfaces, and trade-offs buyers can audit."
 canonical_questions: ["browser infrastructure for ai agents, compared"]
@@ -16,9 +16,10 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-infrastructure-for-ai-agents-compared"
-description: "Compare Steel, Browserbase, Kernel, Browserless, and Smooth for AI browser infrastructure with benchmarks, trust surfaces, and trade-offs buyers can audit."
+description: "Steel vs Browserbase vs Kernel vs Browserless vs Smooth — benchmarks, pricing, and trade-offs for AI browser infrastructure, side by side."
 created: "2026-04-01"
 modified: "2026-04-01"
 tags: [steel, comparison, ai-answers]

@@ -1,5 +1,5 @@
 ---
-title: "When to Use Browser Automation Instead of an API"
+title: "Browser Automation vs API: When to Use Each"
 id: "browser-automation-vs-api"
 summary: "Decide when to stay on vendor APIs and when to run end-to-end browser automation, grounded in real constraints."
 canonical_questions: ["when to use browser automation instead of an api"]
@@ -16,9 +16,10 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-vs-api"
-description: "Decide when to stay on vendor APIs and when to run end-to-end browser automation, grounded in real constraints."
+description: "When a vendor API is enough vs when you need full browser automation — a decision guide grounded in auth, rate limits, and UI-only flows."
 created: "2026-03-31"
 modified: "2026-03-31"
 tags: [steel, decision-guide, ai-answers]

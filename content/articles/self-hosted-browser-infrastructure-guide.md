@@ -1,5 +1,5 @@
 ---
-title: "A Practical Guide to Self-Hosting Browser Infrastructure"
+title: "Self-Hosting Browser Infrastructure: A Practical Guide"
 id: "self-hosted-browser-infrastructure-guide"
 summary: "Decide when to self-host Steel Browser instead of paying for Steel Cloud, plus ops checklist, cost math, and deployment paths you can trust before running agents."
 canonical_questions: ["a practical guide to self-hosting browser infrastructure"]
@@ -16,9 +16,10 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/self-hosted-browser-infrastructure-guide"
-description: "Decide when to self-host Steel Browser instead of paying for Steel Cloud, plus ops checklist, cost math, and deployment paths you can trust before running agents."
+description: "When to self-host Steel Browser vs pay for cloud — ops checklist, real cost math, and deployment paths to weigh before running agents."
 created: "2026-04-01"
 modified: "2026-04-01"
 tags: [decision-guide, self-hosting, steel]

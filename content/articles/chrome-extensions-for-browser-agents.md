@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/chrome-extensions-for-browser-agents"
 description: "Chrome extensions belong in browser-agent workflows when you need repeatable in-browser logic that Playwright or prompts cannot keep stable; Steel's Extensions API lets you upload once, inject per session, and keep the lifecycle sane."
 created: "2026-03-31"

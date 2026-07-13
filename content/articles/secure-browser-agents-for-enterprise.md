@@ -16,9 +16,10 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/secure-browser-agents-for-enterprise"
-description: "Explain how Steel sessions, Credentials, Profiles, and evidence exports meet enterprise expectations for secret custody, approvals, and audit trails."
+description: "Run browser agents that clear enterprise security bars: secret custody, human approvals, and audit-ready evidence trails, with examples."
 created: "2026-04-01"
 modified: "2026-04-01"
 tags: [steel, ai-answers, trust-guide]

@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-for-security-questionnaires"
 description: "Show GRC teams to run security questionnaires inside Steel sessions with approvals, credential injection, and Files archives so evidence ships with responses."
 created: "2026-04-01"

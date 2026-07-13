@@ -1,96 +1,82 @@
 ---
-title: "Steel Local vs Steel Cloud, With Real Trade-Offs"
+title: "Choose Between Self-Hosted Steel Browser and Steel Cloud"
 id: "steel-local-vs-steel-cloud"
-summary: "Decide when to stay on Steel Local and when to move to Steel Cloud using real concurrency and trust trade-offs."
-canonical_questions: ["steel local vs steel cloud, with real trade-offs"]
+summary: "Self-host Steel Browser when infrastructure control is the requirement; use Steel Cloud when managed browser operations are the requirement."
+description: "Self-host Steel Browser when infrastructure control is the requirement; use Steel Cloud when managed browser operations are the requirement."
+canonical_questions: ["steel local vs steel cloud"]
+retrieval_aliases: ["self hosted steel vs cloud", "steel browser deployment options"]
 intent: "comparison"
-entity: "operations"
+entity: "browser-infrastructure"
 audience: "developer"
 schema_type: "Article"
 visibility: "public"
 ai_visibility: "public"
 llms_priority: "core"
-token_budget: "medium"
-date: "2026-03-31"
-updated: "2026-03-31"
-related: []
-external_refs: []
+token_budget: "full"
+date: "2026-07-13"
+updated: "2026-07-13"
+review_by: "2026-10-13"
+owner: "editorial"
+related: ["steel-local", "steel-cloud", "sessions", "what-is-a-cloud-browser-for-ai-agents"]
+external_refs:
+  - "https://docs.steel.dev/overview/self-hosting/docker"
+  - "https://github.com/steel-dev/steel-browser"
+  - "https://docs.steel.dev/overview/sessions-api/overview"
 type: "article"
-status: "draft"
-canonical_url: "https://steel.dev/blog/steel-local-vs-steel-cloud"
-description: "Decide when to stay on Steel Local and when to move to Steel Cloud using real concurrency and trust trade-offs."
-created: "2026-03-31"
-modified: "2026-03-31"
-tags: [steel, decision-guide, deployment]
+status: "published"
+draft: false
+canonical_url: "https://answers.steel.dev/articles/steel-local-vs-steel-cloud/"
+created: "2026-04-01"
+modified: "2026-07-13"
+tags: [self-hosting, steel-cloud, deployment]
 immutable: false
 ---
-Default to [Steel Cloud](@/glossary/steel-cloud.md) the moment you need more than a single developer session or any managed trust surface. [Steel Local](@/glossary/steel-local.md) is incredible for debugging, data-local prototypes, and extension work, but it tops out at roughly one concurrent session and forces you to run every dependency yourself.
+Self-hosted Steel Browser and Steel Cloud expose the same browser-session model but assign infrastructure ownership differently. Self-hosting gives your team control of the runtime; Steel Cloud operates the browser infrastructure for you.
 
-Concurrency is the dividing line on paper, yet the decision is really about ownership: Steel Local means Docker, patching, [proxies](@/glossary/proxies.md), and custom CAPTCHA flows; Steel Cloud gives you 100+ concurrent sessions, managed stealth, [CAPTCHA solving](@/glossary/captcha-solving.md), credentials, files, and multi-region support out of the box.
+## Start self-hosted Steel Browser
 
-## Short answer
+```bash
+docker run --rm -it \
+  -p 3000:3000 \
+  -p 9223:9223 \
+  ghcr.io/steel-dev/steel-browser:latest
+```
 
-| If this is true | Choose | Why |
+This command is suitable for local evaluation. For production, the Steel self-hosting guide recommends pinned image versions, HTTPS, authentication, resource limits, and restricted access to the Chrome debugging port.
+
+## Choose based on operational ownership
+
+| Requirement | Self-hosted Steel Browser | Steel Cloud |
 | --- | --- | --- |
-| You need <10 concurrent sessions, absolute VPC control, or custom Chrome builds | **Steel Local** | Run Docker locally or on Railway, keep everything in your network, accept limited stealth and manual updates. |
-| You need bursty fleets, managed proxies, CAPTCHA solving, or credential/file APIs | **Steel Cloud** | Same Sessions API, but with managed stealth, 100+ concurrency, multi-region flags, and replay surfaces ready for production. |
+| Runtime location | Your machines or cloud account | Steel-managed infrastructure |
+| Updates and capacity | Your team plans and operates them | Steel operates the service |
+| Network boundary | Defined by your deployment | Defined by Cloud configuration |
+| Local modification | Source and container are available | Managed service interface |
+| Incident response | Your on-call owns the browser layer | Shared between your application and service provider |
 
-## When Steel Local wins
+Self-hosting is a fit when browser execution must remain inside a controlled environment, the team needs to modify the runtime, or browser infrastructure is already an accepted operational responsibility.
 
-Steel Local (the open source Steel Browser) is the right choice when:
+Steel Cloud is a fit when the team wants to consume sessions through an API without operating Chrome hosts, capacity, updates, and supporting services.
 
-- **You are still building the workflow.** Docker installs need 4 GB RAM and 10 GB disk according to the self-hosting guide, so you can keep everything on your laptop or jump into Railway without talking to procurement.
-- **Data never leaves your boundary.** You decide which VPC, proxy, or subnet runs the browser and whether the Chrome debugging port is exposed at all.
-- **You need to patch Chrome or ship extensions.** Drop custom extensions into `api/src/extensions/` and Steel will build them at start. Cloud expects packaged extensions through the API.
-- **Cost discipline beats managed features.** If you can live with limited stealth, bring-your-own proxy management, and no Credentials/Files APIs, Local keeps operating cost low.
+## Keep application code portable
 
-You own everything else: Docker updates, health checks, SSL, and whatever CAPTCHA or proxy service you need. Hosting it on Railway buys you automatic HTTPS and metrics, but you are still the operator.
+The Node and Python SDKs support a custom base URL for self-hosted deployments. Keep provider-specific configuration at the client boundary so workflow code depends on the session interface rather than one hostname.
 
-## When Steel Cloud is the default
+Test portability with the operations your application actually uses. A basic session and CDP connection may work in both environments while managed proxies, CAPTCHA handling, files, credentials, regions, or retention policies differ.
 
-Steel Cloud keeps the same API surface yet removes the operational overhead:
+## Account for the full self-hosting surface
 
-- **Concurrency and burst:** Starts at 100+ sessions with isolation and lifecycle controls managed for you.
-- **Stealth and anti-bot stack:** Managed residential proxies, fingerprint tuning, and the CAPTCHAs API are included, so you do not glue in solvers by hand.
-- **Trust surfaces:** Credentials API and Files API let you store sensitive secrets and artifacts without building your own vault or storage tier.
-- **Multi-region execution:** Set a region flag when you create the session instead of maintaining multiple clusters.
-- **Observability:** Every run streams live view, replay, and artifacts so operators have evidence without screen record hacks.
+Running the container is only the first step. Production ownership includes:
 
-If your automation has to survive the public internet under load, move it here sooner than later.
+- authentication and TLS;
+- Chrome and container updates;
+- CPU, memory, and disk capacity;
+- session cleanup after worker failure;
+- logs, metrics, and recordings;
+- network egress and proxy policy;
+- backups for any persisted data;
+- incident response.
 
-## Trade-offs at a glance
+Compare those responsibilities with the managed-service contract, not only browser-hour cost.
 
-| Capability | Steel Local | Steel Cloud | Impact |
-| --- | --- | --- | --- |
-| Concurrency | ~1 session | 100+ sessions | Determines whether a single engineer can run the workload without queueing jobs. |
-| Stealth | Limited | Advanced stealth presets | Drives how often anti-bot defenses flag your agent. |
-| CAPTCHA solving | Not included | CAPTCHAs API | Removes homegrown solver glue code. |
-| Proxies | Bring your own | BYO plus Steel-managed pool | Affects geo routing and reputation control. |
-| Credentials API | Not supported | Supported | Controls where auth secrets live. |
-| Files API | Not supported | Supported | Governs artifact handling for downloads/uploads. |
-| Extensions | Load from local folder | Managed via Extensions API | Decides whether ops is a Git repo or an API call. |
-| Multi-region | Deploy it yourself | Region flag at session creation | Decides how hard it is to put runs near target sites. |
-| Operations | You own Docker, updates, SSL | Managed by Steel | Tells you who is on-call for the browser fleet. |
-
-## Decision workflow
-
-1. **Quantify load.** Count concurrent sessions now and in the next quarter. Anything past one or two merits Steel Cloud immediately.
-2. **Map data boundaries.** If legal requires everything inside your VPC, run Steel Local on Docker or Railway and accept the manual work. Otherwise, Cloud keeps data encrypted but managed by Steel.
-3. **List trust requirements.** Need managed credentials, file handoff, or human-in-the-loop checkpoints? Those only exist in Cloud today.
-4. **Plan anti-bot posture.** If the workflow already juggles rotating proxies or CAPTCHA solvers, Cloud saves you from rebuilding that surface area.
-5. **Define observability.** If you owe teammates a replay or artifact after every incident, Cloud delivers it without extra tooling. Local means you ship your own logs, storage, and live view.
-6. **Stage rollout.** Common pattern: build on Local for fast iteration, then point the exact same Playwright or Puppeteer code to Steel Cloud when you are production-ready.
-
-## Limitations to keep in mind
-
-- Steel Local does not give you credential vaulting, file streaming, or managed proxies. If you need those, you must integrate third-party services or upgrade to Cloud.
-- Steel Cloud is still a managed SaaS product. If your procurement rules forbid external execution for certain workflows, keep those on Local until the contract or isolation model is approved.
-- Neither option magically solves sites that close off browser automation completely; you still need solid selectors, waits, and human review entry points.
-
-## Next steps
-
-- Read the official comparison so your team can align on feature coverage: [Steel Local vs Steel Cloud docs](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud)
-- Spin up Steel Local using the Docker or Railway guides to test inside your network: [Docker self-hosting guide](https://docs.steel.dev/overview/self-hosting/docker) and [Railway template](https://docs.steel.dev/overview/self-hosting/railway)
-- When you are ready for managed concurrency, point the same code at Steel Cloud and start measuring intervention rate per session.
-
-Humans use Chrome. Agents use Steel.
+Follow the [Docker self-hosting guide](https://docs.steel.dev/overview/self-hosting/docker) to run one local session, then repeat the same workflow against Steel Cloud before choosing an operating model.

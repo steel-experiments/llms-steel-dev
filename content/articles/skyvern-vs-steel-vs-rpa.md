@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/skyvern-vs-steel-vs-rpa"
 description: "Verdict-first guide that helps ops teams pick Skyvern, Steel, or traditional RPA by mapping workflow scope, evidence needs, staffing cost, and failure modes."
 created: "2026-04-01"

@@ -17,7 +17,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/puppeteer-with-steel"
 created: "2026-04-01"
 modified: "2026-04-01"

@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/secure-browser-auth-for-agents"
 description: "Handle credentials, approvals, and stored browser state for AI agents without exposing secrets to models or operators."
 created: "2026-03-31"

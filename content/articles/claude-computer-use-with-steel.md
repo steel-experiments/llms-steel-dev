@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/claude-computer-use-with-steel"
 description: "Keep Claude Computer Use prompts untouched; Steel supplies reliable sessions, viewer links, replay evidence, CAPTCHA helpers, and disciplined cleanup."
 created: "2026-04-01"

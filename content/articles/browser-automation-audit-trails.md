@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-audit-trails"
 description: "Design browser automation audit trails with Steel embeds, HLS replays, agent logs, and retention deadlines so every run keeps evidence you can prove later."
 created: "2026-04-01"

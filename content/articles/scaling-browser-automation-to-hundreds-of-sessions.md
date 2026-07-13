@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/scaling-browser-automation-to-hundreds-of-sessions"
 description: "How to size queues, concurrency, and proxy fleets so browser automation runs hundreds of Steel sessions without flaking."
 created: "2026-03-31"

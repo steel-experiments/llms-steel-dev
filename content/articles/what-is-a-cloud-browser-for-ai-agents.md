@@ -1,8 +1,10 @@
 ---
 title: "What Is a Cloud Browser for AI Agents?"
 id: "what-is-a-cloud-browser-for-ai-agents"
-summary: "Cloud browsers for AI agents keep state, stealth, and observability in one runtime so your workflows stop flaking when scripts leave localhost."
+summary: "A cloud browser gives an agent an isolated browser session with remote control, persisted state, and evidence from each run."
+description: "A cloud browser gives an agent an isolated browser session with remote control, persisted state, and evidence from each run."
 canonical_questions: ["what is a cloud browser for ai agents"]
+retrieval_aliases: ["cloud browser for agents", "managed browser runtime"]
 intent: "concept"
 entity: "browser-infrastructure"
 audience: "developer"
@@ -10,150 +12,89 @@ schema_type: "Article"
 visibility: "public"
 ai_visibility: "public"
 llms_priority: "core"
-token_budget: "medium"
-date: "2026-03-31"
-updated: "2026-03-31"
-related: []
-external_refs: []
+token_budget: "full"
+date: "2026-07-13"
+updated: "2026-07-13"
+review_by: "2026-10-13"
+owner: "editorial"
+related: ["sessions", "profiles", "replay", "steel-local-vs-steel-cloud"]
+external_refs:
+  - "https://docs.steel.dev/overview/sessions-api/overview"
+  - "https://docs.steel.dev/overview/sessions-api/session-lifecycle"
+  - "https://docs.steel.dev/overview/profiles-api/overview"
 type: "article"
-status: "draft"
-canonical_url: "https://steel.dev/blog/what-is-a-cloud-browser-for-ai-agents"
-description: "Cloud browsers for AI agents keep state, stealth, and observability in one runtime so your workflows stop flaking when scripts leave localhost."
+status: "published"
+draft: false
+canonical_url: "https://answers.steel.dev/articles/what-is-a-cloud-browser-for-ai-agents/"
 created: "2026-03-31"
-modified: "2026-03-31"
-tags: [cloud browser, ai agents, sessions]
+modified: "2026-07-13"
+tags: [cloud-browser, ai-agents, sessions]
 immutable: false
 ---
-You do not need a [cloud browser](@/glossary/cloud-browser.md) because AI is trendy. You need one when browser state, network identity, and debugging have to survive outside your laptop.
+A cloud browser is a browser that runs on managed infrastructure and exposes a remote control interface. For an AI agent, the useful unit is an isolated [session](@/glossary/sessions.md) with its own state, timeout, and evidence.
 
-A cloud browser for AI agents is a managed browser runtime with isolated sessions, stateful execution, and operator surfaces like [replay](@/glossary/replay.md), [proxies](@/glossary/proxies.md), and auth handling. If it is just Chrome running on a remote VM, it is not enough.
+The browser can outlive one model turn or worker process. Your agent keeps its reasoning loop while the browser provider manages Chromium, network configuration, and session cleanup.
 
-## Short answer
+## The minimum useful interface
 
-A real cloud browser for agents gives you four things in one system:
+A production cloud browser should provide four capabilities:
 
-1. Isolated sessions with explicit lifecycle control.
-2. Compatibility with the browser framework you already ship.
-3. Trust surfaces for auth, anti-bot friction, and human review.
-4. Replayable evidence when the run fails.
+1. **Explicit lifecycle:** create a session, connect to it, set a timeout, and release it.
+2. **Framework access:** attach Playwright, Puppeteer, Selenium, or a computer-use loop through a supported protocol.
+3. **State boundaries:** isolate cookies and storage by session, with an option to persist selected state in a [profile](@/glossary/profiles.md).
+4. **Run evidence:** expose a live viewer and a [replay](@/glossary/replay.md) for completed work.
 
-That is the difference between "remote Chrome" and infrastructure a developer can actually use in production.
+Remote Chrome without those controls can still run a script. It leaves more lifecycle, storage, and observability work in your application.
 
-## What it is not
-
-It is not just a VM with Chrome installed.
-
-It is not a magic anti-bot bypass.
-
-It is not a reason to rewrite working Playwright, Puppeteer, or Selenium code from scratch.
-
-## Four properties that make it real
-
-A cloud browser for AI agents is an execution environment built around four non-negotiables:
-
-1. **Isolated sessions with real state:** Fresh incognito-style windows that spin up in under a second, hold cookies for 24 hours, and die cleanly when you call it. Steel calls this the Sessions API; each session keeps its own storage so your agent can resume multi-step flows without leaking context.
-2. **Framework compatibility:** You connect with the tooling you already ship, Playwright, Puppeteer, Selenium, or Steel SDKs, rather than rewriting flows.
-3. **Operator-grade trust surfaces:** Managed stealth, CAPTCHA solving, regional proxies, credential storage, and human handoff so the workflow can touch real accounts safely.
-4. **Observability:** Live views, replay traces, and artifacts so you can see what broke instead of guessing from logs.
-
-If your "cloud browser" does not meet all four, you bought headless VMs with a marketing layer.
-
-## When you actually need one
-
-You usually need a cloud browser when one or more of these are true:
-
-- The workflow depends on persistent auth, MFA, or remembered devices.
-- The target site behaves differently by region, IP reputation, or browser fingerprint.
-- You need replay, screenshots, or artifacts for debugging and auditability.
-- A human reviewer must pause and resume the same browser run.
-- The job has to scale beyond a few local browsers without becoming an ops project.
-
-[Steel Cloud](@/glossary/steel-cloud.md) wraps those primitives so one engineer can operate dozens or hundreds of sessions without babysitting. The practical differences:
-
-- **Startup latency:** Steel sessions average under one second, so agents are not blocked on cold boots.
-- **Session longevity:** Runs can hold state for up to 24 hours, which matters for approvals, slow queues, or portal work that waits on humans.
-- **Anti-bot stack:** Managed residential proxies, stealth fingerprints, and a CAPTCHAs API mean you are not juggling third-party solvers in every script.
-- **Output formats:** A single session can emit HTML, Markdown, PDFs, screenshots, and video for audit trails or LLM consumption, which cuts token costs by up to 80 percent when you send trimmed formats instead of raw DOMs.
-- **Recovery loops:** Replayable traces and artifacts let you rerun the exact failure without re-instrumenting the code.
-
-## Example: connect Playwright without rewriting
-
-Here is a minimal TypeScript snippet that asks Steel for a session and attaches Playwright over CDP:
+## How a Steel session fits
 
 ```ts
-import { connect } from 'playwright';
-import fetch from 'node-fetch';
+import Steel from "steel-sdk";
 
-const STEEL_API_KEY = process.env.STEEL_API_KEY;
+const client = new Steel({
+  steelAPIKey: process.env.STEEL_API_KEY,
+});
 
-async function run() {
-  const sessionRes = await fetch('https://api.steel.dev/v1/sessions', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      Authorization: `Bearer ${STEEL_API_KEY}`
-    },
-    body: JSON.stringify({
-      headless: false,
-      extensions: ['keep-state'],
-      proxy: { provider: 'steel-managed', region: 'us' }
-    })
-  });
-  const session = await sessionRes.json();
+const session = await client.sessions.create({
+  timeout: 900_000,
+});
 
-  const browser = await connect({
-    wsEndpoint: session.connectors.playwright,
-    timeout: 30_000
-  });
-
-  const page = await browser.newPage();
-  await page.goto('https://example.gov');
-  await page.click('#login');
-  // continue your workflow...
+try {
+  console.log(session.id);
+  console.log(session.sessionViewerUrl);
+  // Connect a browser library or computer-use loop here.
+} finally {
+  await client.sessions.release(session.id);
 }
-
-run().catch(console.error);
 ```
 
-You keep Playwright's API surface, but Steel owns the lifecycle, stealth profile, proxies, artifacts, and teardown. Swapping providers is a config change, not a rewrite.
+Steel's Sessions API creates an isolated browser and returns connection and viewer details. Sessions use a five-minute timeout by default; pass `timeout` in milliseconds when the workflow needs longer. The maximum available duration depends on the account's limits, so set the shortest useful timeout rather than assuming every run can remain open for a full day.
 
-## When Steel Local is enough
+Release is part of the workflow contract. Calling it explicitly frees capacity and gives downstream processing a clear end to the run.
 
-Steel Browser (open source) gives you the same Sessions API on your own hardware. Run it in Docker when you need to debug locally, keep data in your VPC, or operate low-concurrency internal tools. Bring your own proxies and CAPTCHA strategy, expect limited stealth, and plan to run your own observability stack. The minute you need triple-digit concurrency, multi-region coverage, or managed credentials, move the same code to Steel Cloud.
+## When persisted state helps
 
-## When you do not need one
+Fresh sessions are appropriate for independent jobs. Use a profile when retries or later jobs need the same cookies, local storage, extensions, credentials, or browser settings.
 
-If the site is stable, the workflow is short, and you do not need persisted state or replay, standard Playwright on one machine may be enough.
+Steel profiles snapshot the browser user-data directory when a persisted session is released. A later session can load the returned `profileId`. Profiles have documented size and idle-retention limits, so they should hold browser state rather than general file archives.
 
-If a clean API exists and gives you the same data or action path, use the API first.
+Persisting state also changes the security boundary. Treat a reusable profile like an authenticated browser: scope who can reference it, rotate it when access changes, and avoid sharing one profile across unrelated users.
 
-## Works for X, not yet for Y
+## When a local browser is enough
 
-| Works For | Notes |
-| --- | --- |
-| Long-lived workflows that pause for approvals | Sessions hold state for 24 hours so you can stop and resume without relogging. |
-| Agent frameworks that rely on Playwright, Puppeteer, or Selenium | Steel exposes native connectors for each, so no framework rewrite. |
-| Teams that need replayable traces and artifact logs | Every session can stream video, screenshots, and HTML for debugging. |
-| BYO infra with strict data residency | Steel Browser runs anywhere Docker does, but you handle proxies and stealth. |
-| Full-on autonomous fleets with bespoke network stacks | If you need custom kernel patches or experimental browser forks, you still own that layer today. |
-| Agents that expect pure DOM hooks for every action | Coordinate-level control (Computer API) is coming, but DOM-first flows remain faster when the page cooperates. |
+Local Playwright or Chromium remains the simplest option when:
 
-## How to evaluate one quickly
+- one machine owns the entire job;
+- the workflow is short and stateless;
+- you can reproduce failures from local traces;
+- network identity and human handoff do not matter.
 
-1. List the workflows that currently fail in production because of auth, bot checks, or missing observability.
-2. Map how often you need to keep state longer than one run; if it is weekly, you want sessions not stateless scripts.
-3. Compare the cost of running and monitoring your own Chromium pool versus paying for managed sessions with built-in traces.
-4. Decide where approvals live: if a human must greenlight money movement, you need a browser you can stream live without duct tape.
+Move to a managed browser when browser lifecycle becomes shared infrastructure: multiple workers need sessions, operators need a live view, or failures require evidence tied to a job ID.
 
-Run those four steps and you will know whether a cloud browser is overkill or the missing reliability layer.
+Self-hosting and managed infrastructure solve different operational problems. [Steel Local versus Steel Cloud](@/articles/steel-local-vs-steel-cloud.md) covers that deployment choice without changing the session model.
 
-## Ship it for real
+## Operational limits
 
-Test Steel with one workflow that keeps breaking in production. Start a managed session, attach your existing Playwright script, and see the replay the next time it fails.
+A cloud browser does not make selectors stable, authorize access to a target site, or remove the need for application-level safety checks. Your code still owns retries, task policy, idempotency, and any approval required before a consequential action.
 
-- [Docs: Intro to Steel](https://docs.steel.dev/overview/intro-to-steel)
-- [Sessions API overview](https://docs.steel.dev/overview/sessions-api/overview)
-- [Why Browser Agents Fail in Production](https://steel.dev/blog/why-browser-agents-fail-in-production)
-- [Discord](https://discord.gg/steel-dev)
-
-Humans use Chrome. Agents use Steel.
+Start with the [Sessions API overview](https://docs.steel.dev/overview/sessions-api/overview), create one bounded session, and record its ID alongside the job that requested it.

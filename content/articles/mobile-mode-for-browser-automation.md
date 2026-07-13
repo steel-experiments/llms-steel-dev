@@ -17,7 +17,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/mobile-mode-for-browser-automation"
 created: "2026-03-31"
 modified: "2026-03-31"

@@ -17,7 +17,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-use-with-steel"
 created: "2026-04-01"
 modified: "2026-04-01"
@@ -115,6 +116,6 @@ This is the quickstart pattern: Browser Use owns reasoning, Steel owns the Chrom
 - Session logs capture `session.session_viewer_url`, task ID, and whether `client.sessions.release()` succeeded.
 - Proxy, region, and CAPTCHA flags set per target site to avoid false positives.
 - Optional: wire the CAPTCHA tool described above before touching login-heavy sites.
-- Run the official quickstart at [docs.steel.dev/integrations/browser-use/quickstart](https://docs.steel.dev/integrations/browser-use/quickstart) once end to end.
+- Run the official integration guide at [docs.steel.dev/integrations/browser-use](https://docs.steel.dev/integrations/browser-use) once end to end.
 
 Next step: drop this integration into one Browser Use agent, watch the first run in the Steel viewer, then add CAPTCHA tooling before scaling past a handful of sessions. Humans use Chrome. Agents use Steel.

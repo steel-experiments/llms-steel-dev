@@ -1,5 +1,5 @@
 ---
-title: "Browserless vs Steel"
+title: "Browserless vs Steel: Head-to-Head for AI Agents"
 id: "browserless-vs-steel"
 summary: "Neutral Browserless vs Steel guide sizing lifecycle speed, observability defaults, BrowserQL flexibility, and which workflows each platform actually fits."
 canonical_questions: ["browserless vs steel"]
@@ -16,9 +16,10 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browserless-vs-steel"
-description: "Neutral Browserless vs Steel guide sizing lifecycle speed, observability defaults, BrowserQL flexibility, and which workflows each platform actually fits."
+description: "Browserless vs Steel compared on lifecycle speed, observability, BrowserQL, and cost — and which workflows each platform actually fits."
 created: "2026-04-01"
 modified: "2026-04-01"
 tags: [ai-answers, comparison, browserless, steel]

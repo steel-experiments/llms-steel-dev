@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/how-to-measure-browser-agent-reliability"
 description: "Track startup p95, first-action success, completion without retries, manual interventions, and evidence coverage to judge browser agent reliability with Steel."
 created: "2026-03-31"

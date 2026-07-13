@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-for-rag-data-collection"
 description: "Show RAG teams how Steel sessions, Files, and observability keep browser data collection repeatable, auditable, and ready for knowledge base ingestion."
 created: "2026-04-01"

@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-for-public-records-and-compliance"
 description: "Show legal and compliance teams how Steel sessions keep court dockets, FOIA pulls, and filings automated with stateful profiles and audit-ready evidence."
 created: "2026-04-01"

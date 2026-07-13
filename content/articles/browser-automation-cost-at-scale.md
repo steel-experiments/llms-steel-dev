@@ -1,5 +1,5 @@
 ---
-title: "Why Browser Automation Gets Expensive at Scale"
+title: "Browser Automation Costs at Scale: Where Spend Spikes"
 id: "browser-automation-cost-at-scale"
 summary: "Why browser automation spend spikes at scale and how to keep Steel session, proxy, and CAPTCHA costs predictable."
 canonical_questions: ["why browser automation gets expensive at scale"]
@@ -16,9 +16,10 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-automation-cost-at-scale"
-description: "Why browser automation spend spikes at scale and how to keep Steel session, proxy, and CAPTCHA costs predictable."
+description: "Where browser-automation spend really spikes at scale — sessions, proxies, CAPTCHAs — and a playbook to keep costs predictable."
 created: "2026-03-31"
 modified: "2026-03-31"
 tags: [decision-guide, browser-automation, cost]

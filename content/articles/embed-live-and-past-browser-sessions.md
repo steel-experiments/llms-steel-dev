@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/embed-live-and-past-browser-sessions"
 description: "Embed Steel live sessions with debugUrl iframes and stream past sessions via HLS so teammates can watch, take over, or audit every run."
 created: "2026-03-31"

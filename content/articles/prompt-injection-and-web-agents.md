@@ -16,7 +16,8 @@ updated: "2026-04-01"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/prompt-injection-and-web-agents"
 description: "Show how Steel's sessions, credential injection, approvals, and evidence capture limit prompt injections without killing browser agent state or audits."
 created: "2026-04-01"

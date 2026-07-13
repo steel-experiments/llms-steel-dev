@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/anti-bot-false-positives-for-legit-automation"
 description: "Legitimate automation gets flagged when network, fingerprint, behavior, or challenge handling looks synthetic. Fix those layers first with Steel sessions, proxies, and CAPTCHA handling."
 created: "2026-03-31"

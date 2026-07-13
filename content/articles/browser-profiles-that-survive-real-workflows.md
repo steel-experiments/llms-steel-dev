@@ -17,7 +17,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/browser-profiles-that-survive-real-workflows"
 created: "2026-03-31"
 modified: "2026-03-31"

@@ -13,14 +13,16 @@ ai_visibility: "public"
 llms_priority: "core"
 token_budget: "small"
 date: "2026-04-01"
-updated: "2026-04-01"
+updated: "2026-07-13"
+review_by: "2026-10-13"
+owner: "editorial"
 related: []
-external_refs: []
+external_refs: ["https://docs.steel.dev/overview/sessions-api/quickstart"]
 type: "article"
 status: "published"
 template: "page_glossary.html"
 ---
-Anti-bot is the layer of challenges, fingerprint checks, behavioral scoring, and IP reputation systems that sites use to slow or block automation.
+Anti-bot combines challenges, fingerprint checks, behavioral scoring, and IP reputation systems that sites use to slow or block automation.
 
 For browser agents, anti-bot is not one feature. It is the combined pressure from network identity, browser fingerprint, pacing, challenge handling, and session history.
 

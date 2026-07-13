@@ -16,7 +16,8 @@ updated: "2026-03-31"
 related: []
 external_refs: []
 type: "article"
-status: "draft"
+status: "published"
+draft: false
 canonical_url: "https://steel.dev/blog/multi-region-browser-sessions"
 description: "Run Steel browser sessions in the right region first, then layer proxies only when you need a different IP footprint, so latency, residency, and debugging stay predictable."
 created: "2026-03-31"
