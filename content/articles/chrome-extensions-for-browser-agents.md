@@ -39,7 +39,7 @@ Skip extensions when a lightweight Playwright step or content script edit will d
 | You need a marketplace extension (password managers, translators) to finish the flow | Manual install on operators' machines, nothing for agents | Upload from the Chrome Web Store URL once, then keep using the assigned `extensionId` | Session evidence shows the same UI the marketplace add-on renders |
 
 ## Instead of patching scripts forever, treat extensions as shared instrumentation
-Extensions turn one-off glue into an asset. Because Steel stores them at the org level, you upload once, list IDs with `client.extensions.list()`, and keep reusing them across agents, SDKs, and regions. That means the agent prompt can stay simple (“click @e4, read the card, return JSON”) while the extension handles the gnarly parts: injecting schema hints, suppressing pop-ups, or masking PII before snapshots land in your evidence folder. They also play nicely with human-in-the-loop steps because the same extension is visible in live embeds and HLS replays.
+Extensions turn one-off glue into an asset. Because Steel stores them at the org level, you upload once, list IDs with `client.extensions.list()`, and keep reusing them across agents, SDKs, and regions. That means the agent prompt can stay simple (“click @e4, read the card, return JSON”) while the extension handles the gnarly parts: injecting schema hints, suppressing pop-ups, or masking PII before snapshots land in your evidence folder. They also play nicely with human-in-the-loop steps: an overlay the extension renders into the page carries through to both the live WebRTC embed and the MP4/HLS replay, so a reviewer watching either one sees the same guardrails.
 
 ## Implementation path
 1. **Package or pick your extension**
@@ -57,8 +57,10 @@ Extensions turn one-off glue into an asset. Because Steel stores them at the org
    ```
 3. **Discover the IDs you need to reference**
    ```typescript
-   const extensions = await client.extensions.list();
-   const redactorId = extensions.find((ext) => ext.name === 'Redactor').id;
+   // Steel normalizes extension names (truncated + underscored), so match on
+   // the id you stored from upload() rather than the fragile display name.
+   const { extensions } = await client.extensions.list();
+   const redactor = extensions.find((ext) => ext.id === REDACTOR_ID);
    ```
 4. **Attach extensions when you create sessions**
    ```python
@@ -66,10 +68,10 @@ Extensions turn one-off glue into an asset. Because Steel stores them at the org
        extension_ids=[redactorId, 'helper_metrics']  # or ['all_ext']
    )
    ```
-   Extensions load and initialize when the session boots, so plan to start a new session when you change the set.
+   Extensions load and initialize when the session boots, so plan to start a new session when you change the set. Each session boots a clean Chrome, so extension state does not persist across sessions unless you re-attach via `extensionIds` each time.
 5. **Verify inside the run**
    - Use `steel browser live` or the debug URL to confirm the extension shows up in `chrome://extensions` and renders its UI.
-   - Capture a `snapshot -i` so the evidence includes the extension's overlay or output.
+   - Capture a `steel browser screenshot` so the evidence includes the extension's overlay or output.
 6. **Update or retire as workflows evolve**
    ```typescript
    await client.extensions.update(redactorId, {
@@ -88,8 +90,11 @@ Extensions turn one-off glue into an asset. Because Steel stores them at the org
 | You must prove the agent saw the same UI humans do, including overlays | Simple DOM tweaks would be faster in Playwright—skip the extension to cut startup overhead |
 | You need marketplace extensions (password manager, translator) without handing the agent your personal browser | Extensions are in beta; expect changes and keep a fallback path ready |
 
+Extensions run isolated in the browser, so they cannot call Steel services (Files, Credentials, Profiles) directly — your orchestrator still has to push that data into Steel artifacts.
+
 ## Next steps
 - Read the [Extensions API overview](https://docs.steel.dev/overview/extensions-api/overview) for every endpoint (`upload`, `list`, `update`, `delete`, `deleteAll`).
+- Follow the [Upload and run browser extensions](https://docs.steel.dev/cookbook/extensions) cookbook recipe for end-to-end TypeScript and Python examples.
 - Start a fresh Steel session with `extension_ids=['all_ext']` and confirm your helper loads before the agent runs its first step.
 - Write down which workflows truly need an extension (shared overlays, instrumentation) and leave everything else to lightweight scripts.
 

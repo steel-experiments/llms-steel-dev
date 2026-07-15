@@ -30,7 +30,7 @@ Replayable traces are the difference between fixing an agent in minutes and gues
 If you cannot inspect the actual run, you cannot trust the fix. Treat traces as a required dependency alongside your orchestration logic.
 
 ## Short answer
-Steel gives you two evidence surfaces by default: a headful WebRTC stream exposed at `session.debugUrl` for live takeover, and an MP4/HLS recording served from `/v1/sessions/{id}/hls` once the run completes. Use both on every production workflow. Without them, anti-bot trips, DOM races, or human approvals turn into blind debugging sessions.
+Steel gives you three evidence surfaces by default: a headful WebRTC stream exposed at `session.debugUrl` for live takeover, an MP4/HLS recording served from `/v1/sessions/{id}/hls` once the run completes, and the Agent Traces timeline — one structured row per agent activity (verb, target, page URL, timestamp) synced to the video and exportable. Use all three on every production workflow. Without them, anti-bot trips, DOM races, or human approvals turn into blind debugging sessions.
 
 ## Operational pain
 - Agents pass unit tests then stall in prod because nobody can see the DOM state when the checkout loop froze.
@@ -40,7 +40,7 @@ Steel gives you two evidence surfaces by default: a headful WebRTC stream expose
 ## Why naive setups fail
 1. **Screenshot diffing is too coarse.** Static captures hide cursor paths, modals, and timing glitches that only show up in motion. Headful WebRTC streams preserve the real frame rate (25 fps) and pointer position, so you can see the actual interaction.
 2. **Console logs are not evidence.** Many anti-bot layers never throw a JavaScript error. They change the DOM or inject a challenge. Only a real replay shows the interruption.
-3. **Legacy rrweb-only traces drift.** Event reconstruction misses UI chrome, cursors, or video elements. Steel now records the actual OS-level output, so what you replay is what the operator saw.
+3. **Legacy rrweb-only traces drift.** Event reconstruction misses canvas and WebGL, cross-origin iframes, or in-flight video frames. Steel now records the actual OS-level output, so what you replay is what the operator saw.
 4. **Manual reproduction wastes hours.** Spinning up a fresh browser and guessing at the right app state rarely matches the failing run. Streams let you intervene mid-flight or fast-follow the exact failure path.
 
 ## Signals to watch
@@ -48,7 +48,7 @@ Steel gives you two evidence surfaces by default: a headful WebRTC stream expose
 | --- | --- | --- | --- |
 | Session rerun count keeps rising | Automation hides the root cause inside opaque retries | Live debugUrl stream (set `interactive=false` to observe safely) | Capture the first failing frame and tag it to the incident ticket before you rerun |
 | Median time-to-resolution exceeds 15 minutes | Operators lack shared evidence | Embed the HLS replay in your oncall dashboard so everyone reviews the same artifacts | Add a replay-required gate before closing incidents |
-| Support pings say “blank embed” | Live iframe not configured correctly or expired session (Steel defaults to 5 minute idle timeout) | Live embed with explicit dimensions and a quick activity ping | Restart the session with interactive off, verify H.264 playback, and script keep-alive pings |
+| Support pings say “blank embed” | Live iframe not configured correctly or expired session (Steel's default 5-minute session timeout elapsed) | Live embed with explicit dimensions and a sufficient session timeout | Restart the session with interactive off, verify H.264 playback, and raise the session timeout for long runs |
 | Audit demand for human takeover proof | You need to show what the analyst did during intervention | Live stream with `interactive=true` during takeover plus saved HLS replay | Store `debugUrl` metadata and replay URL next to every approved action |
 
 ## Recommended operating pattern
@@ -62,7 +62,7 @@ Steel gives you two evidence surfaces by default: a headful WebRTC stream expose
 ```typescript
 import { Steel } from "steel-sdk";
 const client = new Steel({ apiKey: process.env.STEEL_API_KEY });
-const session = await client.sessions.create({ headless: false });
+const session = await client.sessions.create(); // headful + WebRTC is the default
 await saveRunMetadata({
   sessionId: session.id,
   debugUrl: session.debugUrl,
@@ -73,13 +73,26 @@ const playlist = await fetch(`https://api.steel.dev/v1/sessions/${session.id}/hl
   headers: { "steel-api-key": process.env.STEEL_API_KEY ?? "" }
 });
 await persistReplay(session.id, await playlist.text());
+
+// Release the session explicitly so you're not billed for idle time
+// up to the default 5-minute timeout.
+await client.sessions.release(session.id);
 ```
+
+## Pair video with structured traces
+
+Video shows you what happened; Agent Traces tell you what the agent *did*. Steel's Agent Traces feature gives you a per-activity timeline — one row per action with the verb, target label, page URL, and timestamp — synced to the session video and exportable from the dashboard. It appears as a tab next to Console Logs and Network.
+
+Use it alongside the replay: scrub the video to the failure, then read the trace row at that timestamp to see exactly which action preceded it. Pair the two and your postmortem goes from "something broke mid-checkout" to "the click on the Pay button at 0:42 returned a challenge."
+
+- Overview: https://docs.steel.dev/overview/agent-traces/overview
+- Timeline: https://docs.steel.dev/overview/agent-traces/timeline
 
 ## Trade-offs and limits
 - Debug URLs are intentionally unauthenticated. Wrap them in your own access controls before embedding user facing dashboards.
 - Headful video fidelity costs bandwidth. Budget for H.264 streaming in your observability plan instead of downscaling to screenshots.
-- rrweb playback stays available, but Steel is phasing it out. Plan migrations now so you are not stuck on legacy evidence when headless traces are deprecated.
-- Streams expire when sessions idle for roughly 5 minutes. Keep sessions active or relaunch before you call the issue resolved.
+- rrweb playback stays available for legacy sessions, but Steel recommends migrating to headful MP4 replay and notes that headless event-based playback will be deprecated in the future (no date announced).
+- Sessions end when their lifetime timeout elapses — 5 minutes by default — whether or not the browser is active, so a live stream goes blank after the default window even with no driving. Raise timeout (and optionally set inactivityTimeout for idle-based release) to keep streams running longer.
 
 ## Next steps
 - Wire the live embed now: https://docs.steel.dev/overview/sessions-api/embed-sessions/live-sessions

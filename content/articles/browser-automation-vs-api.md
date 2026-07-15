@@ -52,7 +52,7 @@ Switch to [browser automation](@/glossary/browser-automation.md) the moment the 
 - The UI is the canonical record: pricing tables behind logins, insurance portals with inline calculators, procurement sites that only reveal limits post-click.
 - Client-side scripts gate the flow (React dashboards, infinite scroll, custom validators). Browser automation executes those scripts without reverse-engineering them.
 - Workflows mix automation and humans. Steel sessions can pause for a review, let a human finish, and resume via the same session without losing cookies.
-- Anti-bot systems look for headless fingerprints or repeated IPs. Steel Cloud gives you managed residential proxies, stealth fingerprints, and the CAPTCHAs API.
+- Anti-bot systems look for headless fingerprints or repeated IPs. Steel Cloud gives you managed residential proxies, stealth fingerprints, and the Captchas API.
 - You need proof. Every Steel run streams live view, logs, and replay so you can show what happened to a teammate, auditor, or customer.
 
 ## Trade-offs that matter
@@ -70,8 +70,8 @@ Switch to [browser automation](@/glossary/browser-automation.md) the moment the 
 1. **Inventory the source of truth.** If the fields or actions only exist in the UI, skip straight to browser automation; otherwise note the API coverage and any gaps.
 2. **Score the blockers.** List the auth, approval, or anti-bot steps your workflow hits. Whenever a step needs a human-like browser, mark it browser-first.
 3. **Estimate blast radius.** If a missing field causes real-world loss (wrong quote, delayed filing), prefer browser-first even if an API almost works.
-4. **Pilot with Steel sessions.** Sessions start in under a second, last up to 24 hours, and keep cookies plus storage, so you can test one full workflow without rebuilding tooling.
-5. **Plan operations.** Decide whether you need managed stealth, proxies, CAPTCHAs, credentials, or files. If yes, point your Playwright or Puppeteer code at Steel Cloud for 100+ concurrent sessions; use Steel Browser locally when legal requires your own VPC.
+4. **Pilot with Steel sessions.** Sessions start in under a second when your client is in the same region (Steel-measured), last up to 24 hours on Enterprise plans (15 min on Launch, 1 hour on Scale), and keep cookies plus storage, so you can test one full workflow without rebuilding tooling.
+5. **Plan operations.** Decide whether you need managed stealth, proxies, CAPTCHAs, credentials, or files. If yes, point your Playwright or Puppeteer code at Steel Cloud for 100+ concurrent sessions; use Steel Browser locally when legal requires your own VPC — note that Credentials API, Files API, CAPTCHA solving, and the Stealth Browser are Cloud-only, and Steel Local runs a single session.
 6. **Keep an exit plan.** Even with browser automation, subscribe to API changelogs and adopt them when they finally cover your needs. The smallest reliable contract wins.
 
 ## How Steel handles the browser side
@@ -79,7 +79,7 @@ Switch to [browser automation](@/glossary/browser-automation.md) the moment the 
 - **Sessions API:** Create isolated browsers on demand, reuse them for long flows, and tear them down when done.
 - **Managed stealth stack:** Steel Cloud bakes in residential proxies, fingerprint tuning, and CAPTCHA solving so you do not duct-tape solvers and proxy pools.
 - **Trust surfaces:** Credentials API, Files API, and session embeds let you store secrets, ship downloads, and review runs without building another backend.
-- **Observability:** Live viewer, HLS replay, and structured agent logs mean you can see what happened without hoping a metric spikes.
+- **Observability:** Live viewer, HLS replay, and structured Agent Traces mean you can see what happened without hoping a metric spikes.
 - **Same API locally and in Cloud:** Build on the open-source Steel Browser for single-session prototypes, then point the same Playwright or Puppeteer code at the managed fleet when concurrency or uptime becomes the constraint.
 
 ## Limitations to keep in mind
@@ -92,6 +92,7 @@ Switch to [browser automation](@/glossary/browser-automation.md) the moment the 
 
 - Skim the [Sessions API overview](https://docs.steel.dev/overview/sessions-api/overview) to see how to create, attach to, and release Steel sessions.
 - Compare Steel Local and Steel Cloud features to pick your runtime: [Steel Local vs Steel Cloud docs](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud).
+- Check plan-level concurrency (10 / 100 / 1,000+) and session-time caps (15 min to 24 h) on the [Pricing & limits page](https://docs.steel.dev/overview/pricinglimits).
 - Point existing Playwright scripts at Steel using the [Playwright guide](https://docs.steel.dev/overview/guides/playwright-node) and measure the trade-offs firsthand.
 
 Humans use Chrome. Agents use Steel.

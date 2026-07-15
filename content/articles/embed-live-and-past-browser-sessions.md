@@ -44,7 +44,7 @@ Treat both embeds like product surfaces. Keep the live iframe behind your own AC
    import { Steel } from "steel-sdk";
 
    const client = new Steel({ apiKey: process.env.STEEL_API_KEY });
-   const session = await client.sessions.create({ name: "qa-checkout" });
+   const session = await client.sessions.create();
    const { debugUrl } = session; // store for embeds
    ```
 2. **Embed the live stream inside your product.** Use an iframe and decide whether viewers can interact.
@@ -56,7 +56,7 @@ Treat both embeds like product surfaces. Keep the live iframe behind your own AC
    ></iframe>
    ```
    - `interactive=true` lets humans take over automation or guide a stuck agent; flip it to `false` for read-only.
-   - Fix the iframe dimensions so the WebRTC stream never collapses; Steel defaults to 600 px tall for readability.
+   - Set explicit iframe dimensions so the WebRTC stream has a stable aspect ratio to fill; the docs' examples use 600 px tall, which is a reasonable starting point.
 3. **Wrap the URL with your own auth.** Debug URLs are intentionally unauthenticated so you can paste them anywhere. If you render them in a customer-facing product, gate the iframe route behind your session ACL or signed URL logic.
 4. **Use headless parameters only if you are supporting older runs.** Legacy sessions still respect `theme`, `showControls`, `pageId`, and `pageIndex` query params. Keep them until every workflow has moved to headful defaults.
 
@@ -74,12 +74,11 @@ Treat both embeds like product surfaces. Keep the live iframe behind your own AC
    <video id="player" controls playsinline style="width:100%;max-width:900px;"></video>
    <script type="module">
      import Hls from "https://cdn.jsdelivr.net/npm/hls.js@^1.5.0/dist/hls.mjs";
-     const manifestUrl = "/signed/steel/sessions/e4d6/hls.m3u8";
+     // Your backend mints this signed manifest URL and forwards the steel-api-key header server-side.
+     const manifestUrl = "/signed/steel/sessions/" + sessionId + "/hls.m3u8";
      const video = document.getElementById("player");
      if (Hls.isSupported()) {
-       const hls = new Hls({
-         xhrSetup: (xhr) => xhr.setRequestHeader("steel-api-key", window.STEEL_API_KEY)
-       });
+       const hls = new Hls(); // no xhrSetup key — the proxy adds the header server-side
        hls.loadSource(manifestUrl);
        hls.attachMedia(video);
      } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
@@ -93,10 +92,10 @@ Treat both embeds like product surfaces. Keep the live iframe behind your own AC
 
 ## Trade-offs and guardrails
 - **Access control is on you.** Steel does not authenticate `debugUrl` viewers so you can hand them to any teammate instantly. Only expose the iframe behind your own ACL or signed URLs.
-- **Sessions expire.** Default idle timeout is 5 minutes. If the iframe goes blank, confirm the session is still running or restart it from your orchestration layer.
+- **Sessions expire.** Default session timeout is 5 minutes. If the iframe goes blank, confirm the session is still running or restart it from your orchestration layer.
 - **Headful playback requires H.264 baseline.** Modern browsers already support it, but kiosk or embedded browsers may not. Test the player where it will live.
 - **HLS endpoints require API headers.** Do not ship your Steel API key to the browser unchanged—proxy the request or mint a short-lived signed URL.
-- **rrweb is legacy.** It is great for deterministic DOM diffs but lacks cursor trails, media, or OS chrome. Use it only when a workflow cannot move to headful sessions yet.
+- **rrweb is legacy.** It is great for deterministic DOM diffs and even records mouse movement, but it only reconstructs the DOM — no pixel-accurate canvas/WebGL or video frames, and no OS chrome. Use it only when a workflow cannot move to headful sessions yet.
 
 ## Next steps
 - Wire the live embed first: [docs.steel.dev/overview/sessions-api/embed-sessions/live-sessions](https://docs.steel.dev/overview/sessions-api/embed-sessions/live-sessions)

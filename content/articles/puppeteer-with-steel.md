@@ -24,7 +24,7 @@ created: "2026-04-01"
 modified: "2026-04-01"
 tags: [puppeteer, integration, ai-answers]
 ---
-Point your existing `puppeteer.launch()` call at `wss://connect.steel.dev?apiKey=...` and the same scripts run inside Steel's managed browsers. You keep your code, selectors, and reporters while Steel supplies sub-second session startup, 24-hour lifespan, and automatic capture of live view plus replays.
+Point your existing `puppeteer.launch()` call at `wss://connect.steel.dev?apiKey=...` and the same scripts run inside Steel's managed browsers. You keep your code, selectors, and reporters while Steel sessions start in under a second on average (in-region) and can run up to 24 hours on Enterprise plans (Launch caps at 15 minutes, Scale at 1 hour; the default session timeout is 5 minutes), with automatic capture of live view plus replays.
 
 When you need [proxies](@/glossary/proxies.md), [CAPTCHA solving](@/glossary/captcha-solving.md), or persistent auth, create the session through the Steel SDK first, connect Puppeteer with that `sessionId`, and release it when the job completes. That is how you add stateful runs, [replay](@/glossary/replay.md) evidence, and failure recovery without rebuilding your automation stack.
 
@@ -37,17 +37,17 @@ When you need [proxies](@/glossary/proxies.md), [CAPTCHA solving](@/glossary/cap
 ## What Steel adds
 | Job | Local Puppeteer | Puppeteer on Steel |
 | --- | --- | --- |
-| Launch speed | Boot Chrome, warm proxies, pray CI has free CPU | Steel Cloud sessions start in under one second and expose a ready CDP socket |
+| Launch speed | Boot Chrome, warm proxies, pray CI has free CPU | Steel Cloud sessions start fast and expose a ready CDP socket without you booting Chrome or warming proxies |
 | State continuity | Cookies die whenever the browser restarts | `persistProfile` plus `profileId` capture cookies, storage, extensions up to 300 MB and last until you rotate them (30 idle days) |
-| Replay + evidence | Console logs only | Every session ships a live viewer URL, HLS replay, console logs, and agent logs tied to the same `sessionId` |
+| Replay + evidence | Console logs only | Every session ships a live viewer URL, HLS replay, console logs, and Agent Traces tied to the same `sessionId` |
 | Anti-bot pressure | DIY proxy pool and CAPTCHA plugins | Steel-managed proxies and CAPTCHA solving that you toggle at session creation |
-| Scale | Steel Local or DIY infra tops out near one session | Steel Cloud handles hundreds of concurrent sessions per plan and wires Sessions, Files, Credentials, and Profiles together |
+| Scale | Steel Local or DIY infra tops out at one session | Steel Cloud scales to 10 / 100 / 1,000+ concurrent sessions on Launch / Scale / Enterprise and wires Sessions, Files, Credentials, and Profiles together |
 
 ## Minimal integration path
 **Method 1: One-line `connect`**
-1. `npm install steel-sdk puppeteer dotenv` (if you need the SDK later, install it now).
+1. `npm install steel-sdk puppeteer-core dotenv` (use puppeteer-core, not puppeteer — Steel supplies the remote browser so there's no local Chromium to download).
 2. Replace `puppeteer.launch({...})` with `puppeteer.connect({ browserWSEndpoint: 'wss://connect.steel.dev?apiKey='+process.env.STEEL_API_KEY })`.
-3. Run your script; Steel provisions, records, and releases the session automatically when `browser.close()` or `browser.disconnect()` fires.
+3. Run your script; Steel provisions and records the session automatically. Closing the browser does **not** release it — the session stays live and billable until the default 5-minute timeout unless you explicitly call `client.sessions.release(session.id)`, which requires the SDK session handle from Method 2 (or pass `&sessionId=<uuid>` in the endpoint and release via `client.sessions.release(sessionId)`).
 4. Optional: append `&sessionId=<uuid>` so you can query the run via `client.sessions.retrieve()`.
 
 **Method 2: Create, connect, reuse**
@@ -62,13 +62,13 @@ When you need [proxies](@/glossary/proxies.md), [CAPTCHA solving](@/glossary/cap
 | Tag every run | Generate a UUID, pass it via `sessionId`, and store it next to your job ID | CI logs, approvals, and replays all reference the same ID |
 | Capture auth once | Call `client.sessions.create({ persistProfile: true })`, finish login manually, store the returned `profileId` | Steel uploads the user data directory (up to 300 MB) and marks the profile `READY` after release |
 | Reuse that state | Start future sessions with `{ profileId, persistProfile: true }` | Cookies, storage, extensions, and trusted device signals follow every retry |
-| Pull evidence on failure | `const session = await client.sessions.retrieve(sessionId);` then read `session.sessionViewerUrl` or `session.hlsUrl` | Send teammates the live view link or download the replay without rerunning the job |
-| Clean up after crashes | Call `client.sessions.release(sessionId)` inside `finally` blocks or use `client.sessions.releaseAll()` as a safety net | Prevents 24-hour timeouts from holding slots hostage and ensures Steel marks the replay complete |
+| Pull evidence on failure | `const session = await client.sessions.retrieve(sessionId);` then read `session.sessionViewerUrl` for the live/replay view, or fetch the HLS playlist at `GET https://api.steel.dev/v1/sessions/{id}/hls` | Send teammates the live view link or download the replay without rerunning the job |
+| Clean up after crashes | Call `client.sessions.release(sessionId)` inside `finally` blocks or use `client.sessions.releaseAll()` as a safety net | Prevents session timeouts (5-minute default) from holding slots hostage and ensures Steel marks the replay complete |
 
 ## Example code (Node + Puppeteer)
 ```ts
 import Steel from 'steel-sdk';
-import puppeteer from 'puppeteer';
+import puppeteer from 'puppeteer-core';
 import { config } from 'dotenv';
 import { v4 as uuidv4 } from 'uuid';
 config();
@@ -82,6 +82,7 @@ async function run() {
     useProxy: true,
     solveCaptcha: true,
     persistProfile: true,
+    timeout: 900000, // 15 minutes — extend the 5-minute default for longer runs
   });
 
   const browser = await puppeteer.connect({
@@ -94,8 +95,8 @@ async function run() {
   await client.sessions.release(session.id);
 
   const details = await client.sessions.retrieve(session.id);
-  console.log('Replay:', details.hlsUrl);
   console.log('Live viewer:', details.sessionViewerUrl);
+  console.log('Replay playlist:', `https://api.steel.dev/v1/sessions/${session.id}/hls`);
 }
 
 run().catch(async (err) => {
@@ -107,15 +108,15 @@ run().catch(async (err) => {
 
 ## Trade-offs and guardrails
 - Method 1 is fastest but always uses Steel defaults: no proxies, CAPTCHA solving off, no automatic state persistence. Move to Method 2 for any workflow that reuses auth or hits defensive sites.
-- Sessions live up to 24 hours with a short idle timeout. Treat `sessions.release()` as mandatory so a stuck job cannot burn through your plan's concurrency cap.
+- Session lifetime is capped by plan — 15 minutes on Launch, 1 hour on Scale, and up to 24 hours on Enterprise — and the default `timeout` is 5 minutes (a hard lifetime cap, not an idle timer; the inactivity-based release is off by default), so pass `timeout` (ms) when you create the session for anything longer. Treat `sessions.release()` as mandatory; a stuck job burns your concurrency slot until the timeout elapses.
 - Profiles cap at 300 MB and expire after 30 idle days. Strip caches or video artifacts before ending long runs, and schedule refresh runs if a tenant rarely logs in.
-- Steel Local is great for development or one-session experiments. Use Steel Cloud when you need managed proxies, CAPTCHA solving, or more than a single concurrent session.
-- Use the context Steel hands you. Calling `browser.createIncognitoBrowserContext()` spins up an unmanaged Chrome instance without recordings or guardrails.
+- Steel Local is great for development or one-session experiments (concurrency 1; Credentials API, Files API, CAPTCHA solving, and the Stealth Browser are Steel Cloud-only). Use Steel Cloud when you need managed proxies, CAPTCHA solving, or more than a single concurrent session.
+- Use the context Steel hands you. Calling `browser.createIncognitoBrowserContext()` creates an extra context inside Steel's Chrome — not a separate Chrome instance. Steel's docs only describe recording the default session context, so don't assume the live viewer, video, or Agent Traces will follow a context you create yourself; treat anything done there as outside the recorded session.
 
 ## Works for / not yet
 - Works when you already trust Puppeteer but need better reliability, evidence, or anti-bot coverage without rewriting scripts.
 - Works when you plan to layer Files, Credentials, or human in the loop flows later, because every artifact ties back to the same `sessionId`.
-- Not ideal for single screenshot or HTML extraction jobs; Steel's Quick Actions or REST scrapers are faster for one-off pulls.
+- Not ideal for single screenshot or HTML extraction jobs; Steel's Browser Tools (/v1/scrape, /v1/screenshot, /v1/pdf) are faster for one-off pulls.
 
 ## Next steps
 1. Swap Method 1 into a single spec and confirm that the Steel live viewer records the run.

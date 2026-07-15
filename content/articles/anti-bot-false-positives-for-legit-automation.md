@@ -32,16 +32,16 @@ The fastest win is sequencing the four detection layers: fix the network signal,
 ## Short answer
 
 - False positives almost always start with a noisy network identity. Rotate into residential or BYO proxies and spread requests before you touch code.
-- Steel fits when you need managed stealth, CAPTCHA solving, and stateful sessions that keep auth context steady across retries. Steel Local is still useful for low-risk dev loops where datacenter IPs are fine.
+- Steel fits when you need managed stealth, CAPTCHA solving, and stateful sessions that keep auth context steady across retries. Steel Local is still useful for low-risk dev loops where datacenter IPs are fine, though it lacks CAPTCHA solving, the dedicated Stealth Browser, and managed proxies (concurrency 1), so it can't exercise the anti-bot fixes described here.
 - Steel is not a magic bypass for device bound flows or sites that tie every action to hardware you do not control. Respect robots.txt and site rules.
 
 ## Symptom map
 
 | Symptom | Why it trips risk scoring | First change | Steel fit |
 | --- | --- | --- | --- |
-| 200 OK but page returns empty data | Datacenter IPs plus zero think time look like scraping bursts | Enable `useProxy: true` with country level targeting, add per-step delays | Managed residential proxies rotate per session and retry when tunnels fail |
+| 200 OK but page returns empty data | Datacenter IPs plus zero think time look like scraping bursts | Enable `useProxy: true` with country level targeting, add per-step delays | Managed residential proxies rotate per session; your code still owns backoff and retries on transient tunnel errors |
 | CAPTCHA loops even after solving | Fingerprint overrides leak through `Function.toString` and stack traces | Stop local JS patches, move the session into Steel stealth profiles | Steel Cloud prevents many CAPTCHAs outright and can auto solve ReCAPTCHA, Turnstile, AWS WAF when `solveCaptcha: true` |
-| Session banned mid checkout | New profile every retry looks like credential stuffing | Reuse sessions with stored cookies, follow crawl-delay, hand off sensitive actions | Steel sessions run up to 24 hours with profile persistence so you look like the same trusted user |
+| Session banned mid checkout | New profile every retry looks like credential stuffing | Reuse sessions with stored cookies, follow crawl-delay, hand off sensitive actions | Steel sessions persist profiles so you look like the same trusted user (max session time is 15 min on Launch, 1 hour on Scale, up to 24 hours on Enterprise) |
 | Automation crashes on soft blocks | Code retries without knowing whether proxy, selector, or challenge failed | Instrument the run, capture captcha status, retry with reason codes | Steel records live and replay artifacts plus CAPTCHA status endpoints for targeted solves |
 
 ## 1. Fix the network signal before anything else
@@ -56,11 +56,11 @@ Manual navigator and WebGL patches rarely survive inspection. The moment you ove
 
 ## 3. Pace the workflow like a human session
 
-Behavioral engines watch for zero dwell time, identical pointer paths, and perfect timing between actions. Introduce bounded randomness: scroll before you click, add 80 to 200 millisecond pauses, and reuse the same profile so a repeated workflow looks like a familiar account instead of a brand new visitor. Steel sessions run up to 24 hours, and profiles can store 300 MB of cookies, extensions, and settings, which keeps login state stable while reducing the need for fresh MFA challenges.
+Behavioral engines watch for zero dwell time, identical pointer paths, and perfect timing between actions. Introduce bounded randomness: scroll before you click, add short randomized pauses (e.g. 80-200 ms between steps), and reuse the same profile so a repeated workflow looks like a familiar account instead of a brand new visitor. Steel sessions last up to 15 minutes on Launch, 1 hour on Scale, and up to 24 hours on Enterprise, and profiles can store 300 MB of cookies, extensions, and settings, which keeps login state stable while reducing the need for fresh MFA challenges.
 
 ## 4. Treat CAPTCHAs as part of the workflow
 
-Prevention matters first, but challenges still appear. When you create a Steel session with `solveCaptcha: true`, the platform automatically detects ReCAPTCHA v2 or v3, Cloudflare Turnstile, ImageToText puzzles, and AWS WAF flows, then routes them through the right solver. Plan for added latency and keep waits generous by default. If you disable auto solving for higher control, monitor CAPTCHA status and call the solve endpoint with a specific `taskId`, URL, or `pageId`. [CAPTCHA solving](@/glossary/captcha-solving.md) ships on paid plans only, so build manual procedures for Hobby-tier runs or custom enterprise blockers.
+Prevention matters first, but challenges still appear. When you create a Steel session with `solveCaptcha: true`, the platform automatically detects ReCAPTCHA v2 or v3, Cloudflare Turnstile, ImageToText puzzles, and AWS WAF flows, then routes them through the right solver. Plan for added latency and keep waits generous by default. If you disable auto solving for higher control, monitor CAPTCHA status and call the solve endpoint with a specific `taskId`, URL, or `pageId`. [CAPTCHA solving](@/glossary/captcha-solving.md) is available on every plan, including the free Launch tier after a one-time $10 balance verification (free credits don't count), so reserve manual fallback procedures for custom enterprise blockers the auto-solver doesn't cover.
 
 ## When Steel fits, and when it does not
 

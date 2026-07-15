@@ -28,13 +28,13 @@ immutable: false
 ## Short answer
 Persistent profiles keep retries honest because every session starts from the same user data directory: cookies, local storage, extensions, and browser settings. Instead of scripting a login before every action, create one profile with `persistProfile: true`, reuse it by passing `profileId`, and refresh it when state changes.
 
-Use profiles when workflows span multiple sites, require stored MFA devices, or depend on browser fingerprint stability. If a run only needs temporary cookies, the lighter `sessionContext` handoff works, but it will not restore extensions or last-page state.
+Use profiles when workflows span multiple sites, require stored MFA devices, or depend on a stable browser identity (same user-agent, cookies, and storage across runs). If a run only needs temporary cookies, the lighter `sessionContext` handoff works, but it will not restore extensions or last-page state. For account-based agents that must survive CAPTCHA and device checks, pair each profile with a dedicated IP (`fixed:<id>`, see /overview/sessions-api/dedicated-ips) so the account is not flagged for impossible-traveler logins.
 
 ### Common failure → profile move
 | Failure symptom | What causes it | Profile move |
 | --- | --- | --- |
 | Retry opens logged-out homepage | Context died after the first session released | Start the baseline session with `persistProfile: true` so Steel saves cookies plus storage on release. |
-| Continuation fails CAPTCHA or device check | New sessions look like fresh browsers every time | Always create new sessions with `profileId` so Steel reloads the stored User Data Directory and fingerprint knobs. |
+| Continuation fails CAPTCHA or device check | New sessions look like fresh browsers every time | Always create new sessions with `profileId` so Steel reloads the stored User Data Directory — same cookies, storage, and user-agent carry over — and pin a dedicated IP (`fixed:<id>`, see /overview/sessions-api/dedicated-ips) so the account is not flagged for impossible-traveler logins. (For deeper fingerprint spoofing, set `stealthConfig` at session-create; that is applied per session, not loaded from the profile.) |
 | Agent forgets where it left off | Only cookies were copied, not tabs or extension buffers | Persist the session again (`persistProfile: true`) after seeding extensions or saving the last visited URL in storage. |
 | Login breaks after long idle period | Profile aged out or upload exceeded 300 MB | Monitor `profiles.get` for `FAILED` or unused >30 days and prune artifacts before re-uploading. |
 
@@ -68,6 +68,7 @@ async function seedProfile() {
   );
 
   const page = browser.contexts()[0].pages()[0];
+  // Selectors illustrative; use your target site's real login page and fields.
   await page.goto("https://example.com/login");
   await page.fill("#username", process.env.LOGIN!);
   await page.fill("#password", process.env.PASSWORD!);
@@ -88,12 +89,13 @@ async function runWithProfile(profileId: string) {
 | Use profiles when… | Use session context when… | Watch out for |
 | --- | --- | --- |
 | The workflow depends on long-lived auth, saved tabs, or extensions. | You just need cookies for a short scrape or API fetch. | Profiles older than 30 days are deleted automatically. Touch them periodically or rebuild. |
-| You need retries to resume mid-task with identical fingerprinting. | You are experimenting locally and state churn is cheap. | Uploads over 300 MB fail; keep downloaded archives lean. |
+| You need retries to resume mid-task with the same browser identity. | You are experimenting locally and state churn is cheap. | Uploads over 300 MB fail; keep downloaded archives lean. |
 | Humans may take over the same session later (approvals, reviews). | You want a stateless pool and fresh browser every run. | Treat profile artifacts as secrets; rotate API keys and secure storage. |
+| Account-based agents that must survive CAPTCHA/device checks across runs. | The account only ever logs in from one network anyway. | Profiles persist browser identity, not network identity — pair with a dedicated IP for account-based agents. |
 
 ## What usually breaks
 - **Profile stuck in `FAILED`.** Usually triggered by oversize uploads. Strip caches or video artifacts before ending the session, then re-run with `persistProfile: true` to rebuild.
-- **State lost after release.** You released before Steel finished uploading the profile. Wait for the session to enter `READY` in the Profiles API or sleep a short window before issuing a dependent job.
+- **State lost after release.** You released before Steel finished uploading the profile. After release the session is `RELEASED` (terminal) while the profile moves from `UPLOADING` to `READY` — poll `client.profiles.get(profileId)` until the profile reaches `READY` before starting the next session, or sleep a short window before issuing a dependent job.
 - **Unexpected logout mid-run.** Your script created a fresh session without passing `profileId`. Store it centrally (database, queue metadata) so retries never forget it.
 - **Context theft risk.** Profiles include sensitive cookies and stored credentials. Keep the artifact directory access-controlled, and never log profile IDs in plaintext if they map to production accounts.
 

@@ -34,13 +34,13 @@ Treat prompt injection like an ops problem, not a novelty. Run sessions that beh
 | If the injection step tries to | Steel control | Why it works |
 | --- | --- | --- |
 | Trick the agent into revealing passwords | Credentials API with namespaces, `autoSubmit`, `blurFields`, `exactOrigin`, optional `totpSecret` | Secrets never enter the prompt or live viewer; Steel decrypts per request using AES-256-GCM plus an org KMS key and fills the login form within ~2 seconds inside the session. |
-| Reuse the hijacked session on another tenant | Sessions API + Profiles API (`persistProfile`, `profileId`, release discipline) | Each session is its own incognito browser capped at 24 hours with a 5 minute idle timeout. Profiles store up to 300 MB of context that you can rotate per tenant so injected instructions cannot jump sandboxes. |
+| Reuse the hijacked session on another tenant | Sessions API + Profiles API (`persistProfile`, `profileId`, release discipline) | Each session is its own isolated incognito browser whose hard max lifetime is set by your plan (Launch 15 min, Scale 1 hr, Enterprise up to 24 hr); pass `inactivityTimeout` to auto-release idle runs. Profiles store up to 300 MB of context that you can rotate per tenant so injected instructions cannot jump sandboxes. |
 | Push a destructive action without oversight | Wrapped `debugUrl` with `interactive=true` plus approval logging | The live WebRTC stream is intentionally unauthenticated, so you wrap it in your ACL, turn on interactivity only after recording `{sessionId, approver, action}`, and keep the same session paused until you resume automation. |
-| Hide what happened | Files API, HLS replays, plan-tier retention table | Steel backs up session files and exposes replay endpoints so you can export MP4, downloads, and logs before your plan's retention (24 h to 14 days) expires. Attackers cannot erase that once you mirror it into your storage. |
+| Hide what happened | Files API, HLS replays, plan-tier retention table | Steel backs up session files and exposes replay endpoints so you can export MP4, downloads, and logs before your plan's retention (7 to 14 days, or custom on Enterprise) expires. Attackers cannot erase that once you mirror it into your storage. |
 
 ## Why prompt injection hits browser agents harder
 
-Browser agents read everything: marketing popovers, admin banners, random HTML comments. That gives attackers a large surface to slip payloads into the agent's short term memory. Simon Willison's "lethal trifecta" is a good mental model: give the agent instructions, hand it tools, then harvest the secrets it exposes. If you pipe raw credentials through a prompt, or let reviewers share the debug URL without access control, a single injected div can walk off with anything the session has permission to touch.
+Browser agents read everything: marketing popovers, admin banners, random HTML comments. That gives attackers a large surface to slip payloads into the agent's short term memory. Simon Willison's [lethal trifecta](https://simonwillison.net/2025/Jun/16/the-lethal-trifecta/) is a good mental model: an agent becomes dangerous when it has access to private data, is exposed to untrusted content, and can communicate externally. A browser agent hits all three by default. (OWASP ranks prompt injection the [#1 LLM application risk](https://genai.owasp.org/llmrisk/llm01-prompt-injection/).) If you pipe raw credentials through a prompt, or let reviewers share the debug URL without access control, a single injected div can walk off with anything the session has permission to touch.
 
 Unlike API automation, [browser agents](@/glossary/browser-agents.md) also inherit the user's identity. Long lived cookies, stored extensions, and live approvals make a compromised session far more valuable. That is why Steel leans on supervised autonomy: isolate identities, log every action, and make escalation obvious to the humans who operate the workflow. Prompt injection becomes less about clever prompt wording and more about whether your infrastructure left any high value target exposed.
 
@@ -48,43 +48,44 @@ Unlike API automation, [browser agents](@/glossary/browser-agents.md) also inher
 
 ### 1. Keep secrets out of the token stream
 
-Upload credentials once via `client.credentials.create({ origin, namespace, value, totpSecret })`, then request injection by passing `credentials: {}` on `sessions.create`. Steel stores each record with its own AES-256-GCM key, re-encrypts it with your org's private KMS key, and only decrypts inside the running session over Steel's private WireGuard backbone. Defaults enable `autoSubmit`, `blurFields`, and `exactOrigin`, which means credentials fill and submit quickly, fields blur before a vision model can read them, and injections only happen on the expected domain. Even if an injected prompt tries to coax the agent into echoing the password, there is nothing in memory to leak.
+Upload credentials once via the [Credentials API](https://docs.steel.dev/overview/credentials-api/overview) — `client.credentials.create({ origin, namespace, value: { username, password, totpSecret } })` — then request injection by passing `credentials: {}` on `sessions.create`. Steel stores each record with its own AES-256-GCM key, re-encrypts it with your org's private KMS key, and only decrypts inside the running session over Steel's private WireGuard backbone. Defaults enable `autoSubmit`, `blurFields`, and `exactOrigin`, which means credentials fill and submit quickly, fields blur before a vision model can read them, and injections only happen on the expected domain. Even if an injected prompt tries to coax the agent into echoing the password, there is nothing in memory to leak.
 
 Pair credential injection with clear namespaces such as `{tenant}:{workflow}`. That pattern fences each login to the right persona and gives you a switch to disable injection when a job does not require secrets. Add `totpSecret` whenever a site enforces MFA. Steel generates codes just in time and never returns them, so an injected prompt cannot hoard the shared secret.
 
 ### 2. Constrain what an injection can touch after login
 
-Steel sessions behave like headful incognito windows. They start in under a second, live up to 24 hours, and time out after 5 minutes of inactivity unless you send heartbeats. Always release sessions explicitly (`sessions.release` or `releaseAll`) once the job ends so you do not leave authenticated browsers around for attackers to target. When you need continuity, set `persistProfile: true` and reuse the returned `profileId`. [Profiles](@/glossary/profiles.md) hold up to 300 MB of cookies, extensions, and storage and expire after 30 idle days, which lets you rotate them per tenant or per workload.
+Steel sessions behave like headful incognito windows. They start in under a second, with a hard max lifetime set by your plan (Launch 15 min, Scale 1 hr, Enterprise up to 24 hr); `inactivityTimeout` (off by default) auto-releases a session after a silence window you choose, so set it and always call `sessions.release` explicitly when the job ends. When you need continuity, set `persistProfile: true` and reuse the returned `profileId`. [Profiles](@/glossary/profiles.md) hold up to 300 MB of cookies, extensions, and storage and expire after 30 idle days, which lets you rotate them per tenant or per workload.
 
 Publish plan-tier guardrails so every team knows when to scale:
 
 | Plan | Concurrent sessions | Retention window | Max session length |
 | --- | ---: | ---: | ---: |
-| Starter | 10 | 2 days | 30 minutes |
-| Developer | 20 | 7 days | 1 hour |
-| Pro | 100 | 14 days | 24 hours |
-| Enterprise | Custom | Custom | Custom |
+| Launch | 10 | 7 days | 15 minutes |
+| Scale | 100 | 14 days | 1 hour |
+| Enterprise | 1,000+ | Custom | Up to 24 hours |
 
-Treat those numbers like part of your threat model. [Steel Local](@/glossary/steel-local.md) is roughly one live session and keeps everything inside your VPC. [Steel Cloud](@/glossary/steel-cloud.md) handles the fleets that need managed stealth, proxies, and large credential stores. Split sensitive workflows accordingly so a compromised Local session cannot see Cloud secrets, and vice versa.
+Current limits and metered rates are on the [pricing page](https://docs.steel.dev/overview/pricinglimits).
+
+Treat those numbers like part of your threat model. [Steel Local](@/glossary/steel-local.md) runs roughly one live session inside your VPC but does not support the Credentials API or Files API. [Steel Cloud](@/glossary/steel-cloud.md) handles fleets and is the only tier that offers managed stealth, managed proxies, and the Credentials API. Keep credential injection on Cloud; a Local session cannot leak Cloud secrets simply because Local has no credential store to begin with.
 
 ### 3. Put humans between injected instructions and production damage
 
-Every session ships with a `debugUrl` that streams the live browser over WebRTC at 25 fps. The URL is unauthenticated by design, so front it with your own auth layer before anyone even previews it. When a workflow hits a risky action, pause the automation and hand reviewers an iframe pointing to `${debugUrl}?interactive=true&showControls=true`. Log the reviewer, the action they approved, and the timestamp before you flip interactivity on. If the reviewer rejects the step, call `sessions.release` so the attacker cannot reuse the authenticated state.
+Every session ships with a `debugUrl` ([live session embed](https://docs.steel.dev/overview/sessions-api/embed-sessions/live-sessions)) that streams the live browser over WebRTC at 25 fps. The URL is unauthenticated by design, so front it with your own auth layer before anyone even previews it. When a workflow hits a risky action, pause the automation and hand reviewers an iframe pointing to `${debugUrl}?interactive=true&showControls=true`. Log the reviewer, the action they approved, and the timestamp before you flip interactivity on. If the reviewer rejects the step, call `sessions.release` so the attacker cannot reuse the authenticated state.
 
-For read-only monitoring, pass `interactive=false`. That keeps observers from fat-fingering a click while still letting them watch for suspicious DOM instructions. Either way, keep idle timers in mind: send a lightweight action every few minutes if approvals take longer than the default five minute window.
+For read-only monitoring, pass `interactive=false`. That keeps observers from fat-fingering a click while still letting them watch for suspicious DOM instructions. Either way, mind the hard `timeout`: if approvals will run longer than the session's remaining lifetime, set a larger `timeout` at creation, and set `inactivityTimeout` only if you want idle sessions to release themselves early.
 
 ### 4. Capture artifacts faster than attackers can cover their tracks
 
-Combine the Files API and replay endpoints with your own storage so you always have an evidence trail. Every session lets you download single files or a full archive via `sessions.files.downloadArchive(sessionId)`. That archive moves from the session VM into global storage automatically when you release the session, but plan retention limits still apply. Mirror everything into your SIEM or object store before the clock runs out. Pull the HLS replay (`/v1/sessions/{id}/hls`) or MP4 and attach it to your incident record. Tie those artifacts to approval logs so you can prove whether an instruction came from a poisoned page or from your own agent logic.
+Combine the [Files API](https://docs.steel.dev/overview/files-api/overview) and replay endpoints with your own storage so you always have an evidence trail. Every session lets you download single files or a full archive via `sessions.files.downloadArchive(sessionId)`. That archive moves from the session VM into global storage automatically when you release the session, but plan retention limits still apply. Mirror everything into your SIEM or object store before the clock runs out. Pull the HLS replay (`/v1/sessions/{id}/hls`) or MP4 and attach it to your incident record. Tie those artifacts to approval logs so you can prove whether an instruction came from a poisoned page or from your own agent logic.
 
-Agent logs matter too. Fetch `GET /v1/sessions/{id}/agent-logs` when something looks suspicious and match DOM events to prompt history. Prompt injection loses most of its sting when you can replay the entire sequence verbatim.
+Agent traces matter too. Fetch `GET /v1/sessions/{id}/agent-traces` ([API reference](https://docs.steel.dev/overview/agent-traces/api)) when something looks suspicious and replay the activity timeline synced to video — every click, input, and navigation with a timestamp, page URL, and element target. Prompt injection loses most of its sting when you can replay the entire sequence verbatim.
 
 ## Operating pattern for a sane trust posture
 
 1. **Classify workflows and secrets.** Decide which namespaces, profiles, and plan tiers each workflow needs before the agent runs anything.
 2. **Seed profiles under supervision.** Create the baseline session with `persistProfile: true`, finish the login manually once, then record the `profileId` and the credential namespace together.
 3. **Wrap every live view.** Serve the `debugUrl` through your own app, require sign-in, and log approvals before enabling interactivity.
-4. **Export artifacts on release.** Download files, agent logs, and the replay immediately after `sessions.release` so retention windows never surprise you.
+4. **Export artifacts on release.** Download files, agent traces, and the replay immediately after `sessions.release` so retention windows never surprise you.
 5. **Red-team your own agents.** Inject fake instructions into staging portals and confirm that credentials stay masked, approvals fire, and alerts trigger before anything leaks.
 
 ## What Steel gives you vs what you still own
@@ -93,7 +94,7 @@ Agent logs matter too. Fetch `GET /v1/sessions/{id}/agent-logs` when something l
 | --- | --- |
 | Isolated sessions with defined lifetimes, WebRTC viewers, and release APIs | Enforcing who can create, pause, or resume a session inside your product |
 | Managed credential storage, injection toggles, namespaces, and TOTP filling | Mapping namespaces to real tenants, rotating secrets, and revoking access when people leave |
-| Profiles, Files, replays, and agent logs so you can inspect every run | Classifying data, mirroring evidence to compliant storage, and reviewing logs for anomalies |
+| Profiles, Files, replays, and agent traces so you can inspect every run | Classifying data, mirroring evidence to compliant storage, and reviewing logs for anomalies |
 | Plan-tier concurrency, proxy pools, stealth, and CAPTCHA solving | Scaling orchestration so one noisy workflow does not starve the rest of your fleet |
 
 Prompt injection defenses fail when teams assume Steel can absolve them of LLM hygiene. You still need model-level guardrails, schema validation, and allowlisted tool use. Steel gives you the infrastructure hooks to make those policies stick.
@@ -103,8 +104,8 @@ Prompt injection defenses fail when teams assume Steel can absolve them of LLM h
 - The Credentials API is still in beta. Treat it like production software but watch the changelog for updated behaviors and keep your own rotation cadence.
 - Profiles over 300 MB fail to upload and move into a `FAILED` state. Trim downloads and extensions before persisting again, and recreate profiles every 30 idle days.
 - Debug URLs remain unauthenticated. Never paste them directly into chat or tickets; proxy them immediately or disable them entirely for the most sensitive workflows.
-- Idle sessions shut down quietly. If a review or holding pattern will take longer than five minutes, send periodic `page.waitForTimeout(0)` heartbeats or increase the `timeout` parameter when you create the session.
-- Plan retention windows are real. Hobby plan logs disappear after 24 hours while Pro gives you 14 days. Mirror anything important to your own storage.
+- Idle sessions shut down quietly only if you opt in. Set `inactivityTimeout` on creation if you want idle sessions to release themselves; otherwise a stalled client keeps the session alive and billed until the hard `timeout`. Set a larger `timeout` at creation for long-running workflows, and if `inactivityTimeout` is on, keep the session warm with a real CDP command such as `page.evaluate(() => 1)` rather than a no-op.
+- Plan retention windows are real. Launch plan logs disappear after 7 days while Scale gives you 14 days (Enterprise is custom). Mirror anything important to your own storage.
 - Steel Local has roughly one concurrent headful session. If you need dozens of simultaneous approvals or red-team runs, move them to Steel Cloud so you do not lose coverage while Local idles.
 
 ## Next step

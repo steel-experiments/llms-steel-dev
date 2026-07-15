@@ -26,31 +26,31 @@ tags: [sessions, implementation-guide, multi-region]
 immutable: false
 ---
 ## Short answer
-Stop stacking [proxies](@/glossary/proxies.md) to fake geography when what you need is to move the actual browser. [Steel Cloud](@/glossary/steel-cloud.md) already lets you pin every session to `lax`, `ord`, or `iad` with the `region` parameter, so the browser code runs next to your target property before any [proxy](@/glossary/proxies.md) hops get involved. That cut alone shaves the usual 200+ ms cross-country lag and keeps cookies, storage, and residency requirements aligned with where the work happens.
+Stop stacking [proxies](@/glossary/proxies.md) to fake geography when what you need is to move the actual browser. [Steel Cloud](@/glossary/steel-cloud.md) already lets you pin every session to `lax` or `iad` with the `region` parameter, so the browser code runs next to your target property before any [proxy](@/glossary/proxies.md) hops get involved. That cut alone removes the cross-country round-trips that add latency to every action, and keeps cookies, storage, and residency requirements aligned with where the work happens.
 
 Use proxies for network egress only. Keep the region flag as the source of truth for compute placement, then add Steel-managed or BYO proxies when you specifically need a different IP surface than the data center you chose. This “region first, proxy second” pattern keeps telemetry legible and prevents the cargo-cult proxy chains that make debugging impossible.
 
 ### Region vs proxy at a glance
 | Question | Region parameter | Proxy settings |
 | --- | --- | --- |
-| What does it change? | Where Steel boots the browser VM (`lax`, `ord`, `iad`) | Which IP the browser uses for outbound requests |
+| What does it change? | Where Steel boots the browser VM (`lax`, `iad`) | Which IP the browser uses for outbound requests |
 | When to use it | Latency, residency, data locality, bringing the browser closer to the app | Geo-restricted endpoints, anti-bot evasion, IP diversification |
 | Default behavior | Auto-selects the data center nearest your API caller | Disabled; Steel routes through its own datacenter IP |
-| Failure if misused | Cookies and storage pinned to the wrong coast; replay shows 300 ms RTT | Proxy drift hides the real location, IP bans when reused too fast |
+| Failure if misused | Cookies and storage pinned to the wrong coast; replay shows elevated RTT on every action | Proxy drift hides the real location, IP bans when reused too fast |
 | How they combine | Pick the compute region once, then optionally add `useProxy` | Optional overlay; can be Steel-managed (US today) or BYO for any locale |
 
 ## The failure patterns this solves
 | Symptom | Why it happens | Region-first fix |
 | --- | --- | --- |
 | West coast session automates an east coast banking portal and times out | Default session landed in LAX because the orchestrator runs there | Set `region: "iad"` so the browser executes near the target property before you think about proxies |
-| Compliance run needs data residency in Chicago but devs keep flipping proxy providers | Teams tried to move the IP instead of the VM | Anchor the session in `ord`, then only add BYO proxy if you also need a non-Chicago IP |
-| Debug traces show 400 ms variance between staging and prod | Sessions silently bounced between regions because auto-pick eyed the orchestrator | Log and enforce the region parameter in your session factory and treat proxies as optional |
+| Compliance run needs data residency on the US East Coast but devs keep flipping proxy providers | Teams tried to move the IP instead of the VM | Anchor the session in `iad`, then only add BYO proxy if you also need a non-east-coast IP |
+| Debug traces show large latency variance between staging and prod | Sessions silently bounced between regions because auto-pick eyed the orchestrator | Log and enforce the region parameter in your session factory and treat proxies as optional |
 | Residential proxy invoices spike while latency never improves | Proxy churn tried to compensate for cross-country compute | Reduce proxy churn by setting the correct region first; keep managed proxies for sites that still need residential IPs |
 
 Instead of gambling on proxy rotation to simulate proximity, set the region once and let proxies solve the narrow problem of IP trust.
 
 ## Implementation path
-1. **Decide the compute side by latency or residency.** Map each workflow to `lax`, `ord`, or `iad` today. Keep this in config so you can prove to auditors where the browser ran.
+1. **Decide the compute side by latency or residency.** Map each workflow to `lax` or `iad` today. Keep this in config so you can prove to auditors where the browser ran.
 2. **Create the session with an explicit region flag.**
    ```ts
    import Steel from "steel-sdk";
@@ -65,14 +65,14 @@ Instead of gambling on proxy rotation to simulate proximity, set the region once
 3. **Add proxies only when the IP must differ from the compute region.**
    ```ts
    const session = await client.sessions.create({
-     region: "ord",
+     region: "iad",
      useProxy: {
-       geolocation: { country: "US", state: "IL" },
+       geolocation: { country: "US", state: "VA" },
      },
    });
    ```
    Steel-managed proxies currently operate out of US pools; if you need another locale today, pass your own proxy server string instead of hoping region routing will spoof it.
-4. **Log both decisions for observability.** Store `session.region` and `session.proxy` (or `useProxy` payload) alongside your run artifacts so replay explains which combination produced the trace.
+4. **Log both decisions for observability.** Store `session.region` and `session.proxySource` (alongside the `useProxy` payload you sent) alongside your run artifacts so replay explains which combination produced the trace.
 5. **Fallback intelligently.** If a region is unavailable, retry once in the next best option and flag it. Do not silently flip to proxies-only mode, because the compute location is usually what you cared about.
 
 ## Checklist: enforce region, then layer network controls
@@ -82,7 +82,7 @@ Instead of gambling on proxy rotation to simulate proximity, set the region once
 - **Docs sync**: keep your operator runbook aligned with [multi-region session docs](https://docs.steel.dev/overview/sessions-api/multi-region) so engineers know the current region codes and rollout status.
 
 ## Trade-offs and limits
-- Steel Cloud currently offers three US regions. If you need EU or APAC compute, file a request or run Steel Browser in your own region while you wait.
+- Steel Cloud regions are expanding beyond the US; check the multi-region docs for the current GA list, and run Steel Browser in your own region if you need a geography that isn't yet generally available.
 - Steel-managed residential proxies are US based today; for other locales, provide a BYO proxy server until global pools land.
 - Region routing controls compute placement only; traffic still flows through your chosen proxy or Steel’s default IP pool, so plan residency narratives accordingly.
 - Multi-region is a Steel Cloud feature. Self-hosted clusters can match the pattern, but you own provisioning, health checks, and rotation.

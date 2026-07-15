@@ -41,11 +41,11 @@ Do three things fast: capture the failing session artifact, align the runtime to
 
 ## Why local success dies in cloud
 
-**Runtime drift:** Local scripts launch a bundled Chromium. [Steel Cloud](@/glossary/steel-cloud.md) boots a managed browser in under one second and keeps it alive up to 24 hours. Different GPU flags, locales, or touch support will surface cracks immediately unless you pin them when creating sessions.
+**Runtime drift:** Local scripts launch a bundled Chromium. [Steel Cloud](@/glossary/steel-cloud.md) boots a managed browser in under one second on average and keeps it alive up to 24 hours on Enterprise plans (15 minutes on Launch, 1 hour on Scale). Different GPU flags, locales, or touch support will surface cracks immediately unless you pin them when creating sessions.
 
 **Network and region shifts:** Production traffic often routes through managed proxies or a different geography. That changes pricing, cookies, and even which React bundle you receive. Explicitly choose `region` or proxies before the run so DOM contracts stay put.
 
-**Anti-bot scrutiny:** Datacenter IPs, identical pointer patterns, and blank canvas entropy read like bots. Steel's managed sessions already rotate fingerprints, but you still need to emit real scrolls, hovers, and human-paced timing or you will land in soft blocks.
+**Anti-bot scrutiny:** Datacenter IPs, identical pointer patterns, and blank canvas entropy read like bots. Steel's managed sessions already ship realistic, consistent fingerprints and rotate IPs through managed residential proxies, but you still need to emit real scrolls, hovers, and human-paced timing or you will land in soft blocks.
 
 **State resets:** Rerunning from a blank context wipes MFA cookies, device trust, and local storage. [Profiles](@/glossary/profiles.md) store up to 300 MB of user data so you can resume exactly where the previous run stopped.
 
@@ -65,13 +65,13 @@ Do three things fast: capture the failing session artifact, align the runtime to
 
 ### Runtime mismatch
 
-Instead of assuming your laptop Chromium matches prod, spin up a Steel session with the exact config and attach Playwright to it while you debug:
+Instead of assuming your laptop Chromium matches prod, spin up a Steel session with the exact config and [attach Playwright to it](https://docs.steel.dev/integrations/playwright) while you debug:
 
 ```ts
 import { Steel } from "steel-sdk";
 import { chromium } from "playwright";
 
-const steel = new Steel({ apiKey: process.env.STEEL_API_KEY });
+const steel = new Steel({ steelAPIKey: process.env.STEEL_API_KEY });
 
 const session = await steel.sessions.create({
   region: "iad",
@@ -95,7 +95,7 @@ Now every environment runs the same browser build, [proxy](@/glossary/proxies.md
 
 ### Anti-bot false positives
 
-Instead of hammering `page.click()` with robotic timing, emit realistic input sequences and reuse session state. Small waits, pointer moves, and steel-managed proxies blunt soft blocks. When CAPTCHAs fire, pass `solveCaptcha: true` so the run waits for the solver rather than failing silently.
+Instead of hammering `page.click()` with robotic timing, emit realistic input sequences and reuse session state. Small waits, pointer moves, and steel-managed proxies blunt soft blocks. When CAPTCHAs fire, pass [`solveCaptcha: true`](https://docs.steel.dev/overview/stealth/captcha-solving) so the run waits for the solver rather than failing silently.
 
 ### Selector and data drift
 
@@ -103,19 +103,20 @@ Instead of relying on `waitForTimeout`, replay the failure and instrument select
 
 ### Session hygiene
 
-Instead of letting the default 5 minute lifetime expire, set `timeout` per workflow and release in code when you are done. Bulk release before large reruns so you do not inherit half-dead sessions that still count against concurrency.
+Instead of letting the [default 5 minute lifetime](https://docs.steel.dev/overview/sessions-api/session-lifecycle) expire, set `timeout` per workflow and release in code when you are done. If you want idle sessions to release themselves, set `inactivityTimeout` so the session closes after N ms with no CDP or input activity. Bulk release before large reruns so you do not inherit half-dead sessions that still count against concurrency.
 
 ## Steel guardrails for Playwright
 
-- Sessions start in under a second and can run for 24 hours, so you can reproduce the exact production runtime locally without waiting.
+- Sessions start in under a second on average and can run up to 24 hours on Enterprise plans (1 hour on Scale, 15 minutes on Launch), so you can reproduce the exact production runtime locally without waiting.
 - Profiles preserve up to 300 MB of user data, which keeps authenticated Playwright flows stable between retries.
 - Managed proxies, regional routing, and CAPTCHA solving reduce the anti-bot gaps between your laptop Wi-Fi and the sites you automate.
 - The live viewer plus replay exports give you the evidence you need before you edit selectors or timeouts.
 - Session lifecycle APIs let you release individual runs or the entire fleet, which prevents orphaned browsers from tripping future jobs.
+- Session ceilings and concurrency scale with your plan — Launch caps sessions at 15 minutes and 10 concurrent, Scale at 1 hour and 100, Enterprise up to 24 hours and 1,000+ — so size `timeout` and parallelism against your [plan limits](https://docs.steel.dev/overview/pricinglimits).
 
 ## Limitations and next steps
 
-Steel cannot fix vendor-side device binding or outages on the target site. If the portal whitelists specific hardware IDs or locks accounts after multiple login attempts, you still need a human checkpoint. Treat this page as the fast path to evidence, not a silver bullet.
+Steel cannot fix vendor-side device binding or outages on the target site. Profiles persist up to 300 MB of state but are auto-deleted after 30 days of inactivity, so long-lived auth flows need a periodic refresh. If the portal whitelists specific hardware IDs or locks accounts after multiple login attempts, you still need a human checkpoint. Treat this page as the fast path to evidence, not a silver bullet.
 
 Next step: rerun your script while attached to a Steel session with the same proxy and profile settings you expect in production, then watch the replay to trim the root cause. When it looks good, add a release call plus trace capture to your code so the next incident is even faster.
 

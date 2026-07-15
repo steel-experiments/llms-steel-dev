@@ -43,10 +43,10 @@ If you only spoof headers, anti-bot checks still see a desktop browser pretendin
 | Checkout hides steps on desktop | Hover menus, multi-column layouts, and hidden controls stall automation | Start sessions with `deviceConfig: { device: "mobile" }` so the UI collapses into one linear form |
 | Mobile-only features such as SMS OTP enrollment | Server serves different JS bundles and endpoints by device | Run touching contexts (`hasTouch: true`) and treat the flow as its own script |
 | Anti-bot filters catching spoofed UAs | Fingerprint mismatch exposes automation | Use the managed mobile fingerprint that matches viewport, UA, sensor flags, and network timing |
-| Token budgets blowing up | Desktop DOM is 2-3x larger than mobile | Send the cheaper mobile DOM to your model or extraction step |
+| Token budgets blowing up | Mobile sites often serve a simpler DOM | Send the cheaper mobile DOM to your model or extraction step |
 
 ## Instead of spoofing headers, create a mobile session
-`deviceConfig: { device: "mobile" }` is the only input you need when creating a Steel session. The session comes back preloaded with a mobile viewport, touch events, and a fingerprint that matches. Keep running Playwright or Puppeteer the same way you do for desktop; you only change the session recipe.
+`deviceConfig: { device: "mobile" }` is the only input you need when creating a Steel session. The session comes back preloaded with a mobile viewport, touch events, and a fingerprint that matches. Keep running Playwright or Puppeteer the same way you do for desktop; you only change the session recipe. See the [Mobile Mode docs](https://docs.steel.dev/overview/sessions-api/mobile-mode) for the full reference.
 
 ```ts
 import Steel from "steel-sdk";
@@ -69,8 +69,8 @@ await page.goto("https://example.com/mobile-checkout");
 
 ## Implementation path
 1. **Choose the flows that gain from linear UI.** Start with journeys that already frustrate headless runs: mobile-first checkout, SMS OTP enablement, banking portals that redirect to `/m/` paths, or property listings that hide filters on desktop.
-2. **Create the session in mobile mode.** Set the device config during `sessions.create`. That one flag keeps fingerprint, viewport, and UA aligned, and Steel carries the setting through replays, embeds, and approvals.
-3. **Drive it like a phone.** After you connect, either reuse the provided page or spawn a fresh context with `hasTouch: true`, `isMobile: true`, and `viewport` set to a common device profile. Prefer `page.tap()` and `page.swipe()` helpers where they exist. If you stick to `.click`, some elements will ignore you because the JS is watching for touch events.
+2. **Create the session in mobile mode.** Set the device config during `sessions.create`. That one flag keeps fingerprint, viewport, and UA aligned, and Steel carries the deviceConfig setting through session persistence, preserved across the live viewer and replays.
+3. **Drive it like a phone.** After you connect, either reuse the provided page or spawn a fresh context with `hasTouch: true`, `isMobile: true`, and `viewport` set to a common device profile ([Playwright context options](https://playwright.dev/docs/api/class-browsercontext)). Prefer `page.tap()` for taps; there is no built-in `page.swipe()`, so synthesize swipes with `page.mouse` (`move` → `down` → `move` → `up`) under `hasTouch: true`. If you stick to `.click`, some elements will ignore you because the JS is watching for touch events.
 4. **Treat selectors as distinct contracts.** Mobile templates often collapse ids, rename buttons, or hide nodes until scroll. Store selectors separately and gate them behind a feature flag, not string concatenation. Use Steel profiles if the flow needs authenticated repeats; mobile sessions persist cookies just like desktop ones.
 5. **Watch viewport-triggered lazy loads.** Scroll in increments and assert that new cards appear before continuing. Smaller screens defer more content, so combine `page.waitForSelector` with `page.evaluate(() => window.scrollBy(0, window.innerHeight))` loops.
 6. **Capture proof from the live viewer or replay.** Use Steel's `debugUrl` to watch the mobile viewport directly or pull an HLS replay when the flow fails. Mobile state is often more fragile, and video saves you from guessing what the phone-sized UI looked like when it broke.
@@ -83,7 +83,7 @@ await page.goto("https://example.com/mobile-checkout");
 ## When to stay on desktop
 | Scenario | Why mobile mode is the wrong tool | Better plan |
 | --- | --- | --- |
-| Extension-dependent automation | Chrome extensions are desktop only today | Stick with desktop sessions and use the Extensions API |
+| Extension-dependent automation | Chrome extensions are built for desktop Chrome; their UIs and content scripts assume a desktop viewport | Stick with desktop sessions and use the Extensions API |
 | High-resolution visual QA | Mobile view hides layout bugs you care about | Automate desktop first, then run mobile as a secondary check |
 | CPU-heavy data processing in-page | Mobile bundles throttle timers and degrade performance | Use desktop sessions or run compute on the server after extraction |
 

@@ -25,9 +25,9 @@ modified: "2026-04-01"
 tags: [rag, ai-answers, vertical-workflow]
 immutable: false
 ---
-RAG pipelines only produce trustworthy answers when every crawl, scrape, or agent step leaves a trail: where the content came from, which selectors captured it, which attachments were downloaded, and what human approved the export. Steel sessions spin up in under a second, stay live for up to 24 hours, and preserve portal trust inside reusable profiles, so each run can tag its evidence and send the final payload downstream without guessing what actually happened.
+RAG pipelines only produce trustworthy answers when every crawl, scrape, or agent step leaves a trail: where the content came from, which selectors captured it, which attachments were downloaded, and what human approved the export. Steel sessions spin up in under a second, stay live for up to an hour on Scale and up to 24 hours on Enterprise, and preserve portal trust inside reusable profiles, so each run can tag its evidence and send the final payload downstream without guessing what actually happened.
 
-Instead of bolting Playwright or Selenium onto an ad hoc Chrome fleet, treat Steel as the managed browser tier for knowledge ingestion. Credal already processes more than 6 million URLs a month just to keep enterprise knowledge bases current, and teams like Stack AI or Zapier learned the hard way that public-site scraping eventually hits authenticated docs, JavaScript-only releases, or delta tracking that needs a long-lived browser. Steel keeps that complexity inside an API: credentials stay vaulted, downloads land in a `/files` mount, observers get a wrapped `debugUrl`, and everything releases with HLS replays plus agent logs you can audit alongside your vector store commits.
+Instead of bolting Playwright or Selenium onto an ad hoc Chrome fleet, treat Steel as the managed browser tier for knowledge ingestion. Teams building RAG pipelines learn the hard way that public-site scraping eventually hits authenticated docs, JavaScript-only releases, or delta tracking that needs a long-lived browser. Steel keeps that complexity inside an API: credentials stay vaulted, downloads land in a `/files` mount, observers get a wrapped `debugUrl`, and everything releases with HLS replays plus Agent Traces you can audit alongside your vector store commits.
 
 ## Workflow snapshot
 | Workflow | Typical targets | Traceability failure mode | Steel move |
@@ -50,28 +50,28 @@ Instead of bolting Playwright or Selenium onto an ad hoc Chrome fleet, treat Ste
 3. **Reuse profiles for gated sources.** Seed a profile manually, finish MFA, then reuse the `profileId` until either the site forces a reauth or the 30 day inactivity timer hits. Release stale profiles to stay under the 300 MB cap.
 4. **Inject secrets safely.** Store credentials with namespaces (plus `totpSecret` if needed) and fetch them inside the workflow instead of embedding them into planner prompts or job configs.
 5. **Mount datasets through Files.** Upload seed documents or filters to Global Files, mount them into `/files`, and rely on `sessions.files.downloadArchive` plus `files.upload` to push outputs back into your storage tier.
-6. **Record normalized artifacts.** Render DOM to markdown, save selector contracts, hash exports, and capture HLS replays plus agent logs as part of the same queue item so humans can reenact any ingestion later.
-7. **Release and scale intentionally.** Chain `sessions.release`, replay download, log export, and Files mirroring. Move from Steel Local (~1 session) to Steel Cloud Starter/Pro once the queue needs tens or hundreds of live sessions.
+6. **Record normalized artifacts.** Render DOM to markdown, save selector contracts, hash exports, and capture HLS replays plus Agent Traces as part of the same queue item so humans can reenact any ingestion later.
+7. **Release and scale intentionally.** Chain `sessions.release`, replay download, log export, and Files mirroring. Move from Steel Local (~1 session) to Steel Cloud Launch/Scale once the queue needs tens or hundreds of live sessions.
 
 ## Steel surfaces that matter here
 | Surface | What it provides | Why it matters to RAG teams |
 | --- | --- | --- |
-| Sessions + Profiles | Sub-second cold starts, up to 24 hour lifetimes, persistent auth with per-profile metadata | Lets you hold trust cookies, locale settings, and feature flags steady across repeated crawls without retyping credentials |
+| Sessions + Profiles | Sub-second cold starts, up to 1-hour lifetimes on Scale (24h on Enterprise), persistent auth with per-profile metadata | Lets you hold trust cookies, locale settings, and feature flags steady across repeated crawls without retyping credentials |
 | Files API (Session + Global) | Deterministic `/files` mount plus automatic promotion of session files to global storage on release | Keeps datasets, attachments, and raw exports in one place with hashes you can reuse inside downstream ingestion jobs |
 | Credentials API | Vaulted secrets, namespace scoping, optional TOTP fields | Removes passwords from prompts, scopes access to each workflow, and documents when secrets were last used |
-| Observability stack | Live viewer, optional interactive control, HLS replay export, agent logs | Gives reviewers proof of what the agent saw before accepting a dataset and an artifact they can attach to release notes |
-| Metadata + Logs | Structured `metadata` object on sessions plus agent log export API | Allows ingestion jobs to link replays, selectors, and dataset hashes back to a single ID when auditors ask |
-| Deployment options | Steel Local for air-gapped or dev runs, Steel Cloud for managed proxies, CAPTCHA solving, and higher concurrency | Keeps sensitive data on-prem when required while still letting production RAG crawlers burst to hundreds of sessions |
+| Observability stack | Live viewer, optional interactive control, HLS replay export, Agent Traces | Gives reviewers proof of what the agent saw before accepting a dataset and an artifact they can attach to release notes |
+| Metadata + Logs | Structured `metadata` object on sessions plus Agent Traces | Allows ingestion jobs to link replays, selectors, and dataset hashes back to a single ID when auditors ask |
+| Deployment options | Steel Cloud (Launch/Scale/Enterprise) for managed proxies, CAPTCHA solving, the Files and Credentials APIs, and 10–1,000+ concurrent sessions | This RAG pattern depends on Files, Credentials, and CAPTCHA — none of which Steel Local supports — so run it on Steel Cloud, where production crawls can burst to hundreds of sessions; Steel Local is capped at one session and suited only to navigation/extension prototyping |
 
 ## Traceability checklist
 | Control | Owner | Action |
 | --- | --- | --- |
 | Dataset lineage | Data engineering | Tag every session with job IDs and source slugs, archive HLS + logs, and store selector manifests next to the embedding batch |
-| Evidence retention | Ops | Mirror HLS playlists, agent logs, and Files archives into your storage before the 7 or 14 day clock on your plan expires |
+| Evidence retention | Ops | Mirror HLS playlists, Agent Traces, and Files archives into your storage before the 7 or 14 day clock on your plan expires |
 | Credential hygiene | Security | Rotate secrets in the Credentials API, enforce namespace policies, and delete credentials or profiles when an operator leaves |
-| Viewer access | App + Security | Wrap `debugUrl` behind your SSO, default `interactive=false`, and log every escalation for human-in-loop approvals |
+| Viewer access | App + Security | Wrap `debugUrl` behind your SSO, override the default to `interactive=false` (Steel ships `interactive=true`), and log every escalation for human-in-loop approvals |
 | Dataset approvals | Knowledge ops | Require a human to watch the replay or review the normalized markdown before pushing embeddings into production |
-| Concurrency limits | Infra | Monitor plan caps (Steel Local ~1 session, Cloud Starter in the tens, Pro >=100) and queue runs accordingly so crawls never silently stall |
+| Concurrency limits | Infra | Monitor plan caps (Steel Local ~1 session, Cloud Launch at 10, Scale at 100, Enterprise at 1,000+ concurrent) and queue runs accordingly so crawls never silently stall |
 
 ## Works for / Not yet
 **Works for**

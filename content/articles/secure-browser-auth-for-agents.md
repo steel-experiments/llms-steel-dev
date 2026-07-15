@@ -25,7 +25,7 @@ modified: "2026-03-31"
 tags: [steel, ai-answers, trust-guide]
 immutable: false
 ---
-Stop pasting passwords into prompts. Store them once with Steel's [Credentials API](@/glossary/credentials-api.md), inject them into live sessions without ever sending the values to your agent or reviewers, and keep the authenticated browser context alive with profiles so state never leaks.
+Stop pasting passwords into prompts. Store them once with Steel's [Credentials API](@/glossary/credentials-api.md), inject them into live sessions without ever sending the values to your agent or reviewers, and keep the authenticated browser context alive with profiles so credentials do not flow through prompts or logs — and treat the profile itself and any debug URL as secrets, since either one can drive the logged-in session.
 
 Pair credential injection with persisted profiles and your own ACL around Steel's live viewer, and you can let agents run real account work while keeping humans, models, and logs blind to the raw secrets. Use namespaces, audit who touches a session, and rotate profiles on a predictable cadence.
 
@@ -34,7 +34,7 @@ Pair credential injection with persisted profiles and your own ACL around Steel'
 | If you need to | Use this control | What it prevents |
 | --- | --- | --- |
 | Reuse logins without exposing passwords | Credentials API (`credentials.create`, namespace match, `autoSubmit`, `blurFields`) | Agents, viewers, or logs never see the values; Steel autofills and submits within ~2 seconds. |
-| Keep session cookies, tokens, and extensions across runs | Profiles API (`persistProfile`, `profileId`, 300 MB limit) | Long flows stop re-authing, CAPTCHAs fire less, fingerprints stay stable for up to 24 hours of session life. |
+| Keep session cookies, tokens, and extensions across runs | Profiles API (`persistProfile`, `profileId`, 300 MB limit) | Long flows stop re-authing, CAPTCHAs fire less, fingerprints stay stable across the session (up to 24 h on Enterprise; 1 h on Scale, 15 min on Launch). |
 | Inject OTP or MFA factors without humans typing them into the model | Credentials with `totpSecret` | MFA codes stay server side, generated just-in-time per origin. |
 | Prove stewardship to security or legal | Legal references + app-layer audit log (who approved access, when) | You know which reviewer touched a session, and your policy docs point to Steel's ToS and Privacy pages. |
 
@@ -50,8 +50,8 @@ Steel splits the problem: credentials live in an org-level vault with envelope e
 | --- | --- | --- |
 | Credential sprawl across agents | Store secrets once via `client.credentials.create({ origin, namespace, value })` and only request injection by passing the same namespace on `sessions.create` | Namespaces are exact match, so write a `{app}:{persona}` pattern and disable injection when the workflow does not need it. |
 | Visible passwords in review UIs | Enable `blurFields: true` and keep the live embed behind your auth | Steel blurs every field after it types; wrap the `debugUrl` iframe in your ACL so only approved reviewers can even see the masked inputs. |
-| MFA fatigue | Supply `totpSecret` when you create credentials | Steel generates OTP codes on demand and never surfaces them back out, so agents do not memorize or log codes. |
-| State drift between steps | Start sessions with `persistProfile: true` and reuse the `profileId` for the next run | Profiles capture cookies, storage, extensions, and custom settings up to 300 MB; refresh them if they fail to upload or after 30 idle days. |
+| MFA fatigue | Supply a `totpSecret` inside the credential's `value` object (alongside `username`/`password`) | Steel generates OTP codes on demand and never surfaces them back out, so agents do not memorize or log codes. |
+| State drift between steps | Start sessions with `persistProfile: true` and reuse the `profileId` for the next run | Profiles capture cookies, storage, extensions, and custom settings up to 300 MB; if an upload fails the profile enters a FAILED state (trim extensions/downloads and re-persist); after 30 idle days profiles are deleted, so recreate them ahead of seasonal workflows. |
 | Compliance questions | Link to the current Terms of Service and Privacy Policy in your security review packet | The docs live under `docs/overview/legal`; reference them while documenting how you proxy Steel's live embeds through your auth. |
 
 ## Recommended operating pattern
@@ -77,7 +77,7 @@ The first navigation to the login page triggers Steel's injector; after the run 
 ## Safeguards and limits
 
 - Credentials storage is currently in beta; treat it as a managed secret store but keep your own rotation cadence.
-- Session lifetimes cap at 24 hours and idle timers default to 5 minutes, so schedule heartbeat actions if login approvals take longer.
+- Session lifetimes cap at 24 hours on Enterprise plans (Launch: 15 minutes, Scale: 1 hour), and the default session `timeout` is 5 minutes, so set a longer `timeout` (e.g. `timeout: 1800000` for 30 minutes) when login approvals may run long. The separate `inactivityTimeout` is disabled by default; set it only if you want idle sessions to release early.
 - Profiles over 300 MB fail to upload and move into a `FAILED` state; clean up extensions or downloads before persisting again.
 - Profiles that sit unused for 30 days are deleted. Recreate them proactively for seasonal workflows.
 - Debug URLs are intentionally unauthenticated for fast embeds. Always proxy them or exchange for short-lived signed links before sharing.
@@ -91,7 +91,7 @@ The first navigation to the login page triggers Steel's injector; after the run 
 - Teams share the same workflows, and you want a single audit trail for who approved or touched each session.
 
 **Extend or look elsewhere when:**
-- Compliance demands on-prem custody for everything. Run Steel Browser locally and wire the same credential workflow into your own vault until the managed beta leaves preview.
+- Compliance demands on-prem custody for everything. The Credentials API is Cloud-only (Steel Local does not support it), so on self-hosted Steel Browser you would inject credentials from your own secrets manager directly in your automation code (e.g. Playwright form-fill) and you lose Steel's in-flight masking, blur, and auto-submit. Use Steel Cloud if you need the managed injection path.
 - You need per-user secrets tied to downstream identity systems. Today credentials are org global, so add your own mapping layer before calling Steel.
 - You cannot tolerate any unauthenticated embeds. Keep the live viewer disabled and rely on HLS replays while legal evaluates an allowlist-based approach.
 

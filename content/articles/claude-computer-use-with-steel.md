@@ -25,26 +25,26 @@ modified: "2026-04-01"
 tags: [claude, computer-use, integration, ai-answers]
 immutable: false
 ---
-Keep Claude's [Computer Use](@/glossary/computer-use.md) loop exactly as it is and hand the `computer_20250124` tool a Steel session. You keep the prompts, planning, and review loop you already tuned while Steel owns the Chromium runtime, evidence, and cleanup.
+Keep Claude's [Computer Use](@/glossary/computer-use.md) loop exactly as it is and hand the `computer_20251124` tool a Steel session. You keep the prompts, planning, and review loop you already tuned while Steel owns the Chromium runtime, evidence, and cleanup.
 
-Steel adds the boring but critical parts: sub-second sessions that last up to 24 hours, live viewer and [replay](@/glossary/replay.md) links for every run, CAPTCHA and [proxy](@/glossary/proxies.md) controls for hostile sites, and explicit release calls so your queue never starves.
+Steel adds the boring but critical parts: sub-second-to-seconds session startup with a lifetime that scales with your plan (15 min on Launch, 1 hour on Scale, up to 24 hours on Enterprise), live viewer and [replay](@/glossary/replay.md) links for every run, CAPTCHA and [proxy](@/glossary/proxies.md) controls for hostile sites, and explicit release calls so your queue never starves.
 
 ## What stays the same
 | Computer Use concern | What you keep | Notes |
 | --- | --- | --- |
 | Prompting and reasoning | Same Claude system prompt plus single natural language task | Steel never touches your Anthropic credentials or betas |
-| Tool contract | `computer_20250124` remains the only tool in `tools` | You just swap the backend that powers mouse, key, scroll, and screenshot actions |
+| Tool contract | `computer_20251124` remains the only tool in `tools` | You just swap the backend that powers mouse, key, scroll, and screenshot actions |
 | Safety workflow | Existing human approvals or safety acknowledgements | Keep whichever reviewer UI or policy you already wired around Claude |
 | Orchestration | Your Python or Node worker, queues, and Anthropic SDK usage | Steel is an extra API client that sits beside `anthropic` |
 
 ## What Steel adds
 | Steel surface | Why it matters for Claude Computer Use | How to wire it |
 | --- | --- | --- |
-| Session lifecycle | Sub-second startup and 24 hour cap prevent Chromium restarts mid reasoning | `session = steel.sessions.create({dimensions:{width:1280,height:768},blockAds:true,timeout:900000})` then always release |
+| Session lifecycle | Fast startup with a tiered lifetime (15 min Launch / 1 hour Scale / up to 24 hours Enterprise) prevents Chromium restarts mid reasoning | `session = steel.sessions.create({dimensions:{width:1280,height:768},blockAds:true,timeout:900000})` then always release |
 | Observability | Live viewer plus replay keeps every action reviewable and easy to forward | Log `session.sessionViewerUrl` or `session.session_viewer_url` with each Anthropic response ID |
-| Computer API bridge | Deterministic mapping for `click`, `press_key`, `type_text`, `scroll`, `take_screenshot` | Forward each tool call to `steel.sessions.computer(session.id, body)` and return the screenshot data URI |
+| Computer API bridge | Translates Claude's `left_click`/`type`/`key`/`scroll`/`screenshot` into Steel's `click_mouse`/`type_text`/`press_key`/`scroll`/`take_screenshot` (the two vocabularies do not match) | Switch on Claude's action name, build the Steel action body, call `steel.sessions.computer(session.id, body)`, then return the screenshot data URI |
 | Anti-bot stack | Managed proxies and CAPTCHA solving cut the sites that stall Claude's loop | Set `useProxy`, `region`, and wire the CAPTCHAs API before high-friction domains |
-| Human-in-loop evidence | Viewer link, agent logs, and replay export prove what happened before approvals | Pair every sensitive tool call with the viewer URL so reviewers can stop or resume confidently |
+| Human-in-loop evidence | Viewer link, agent traces, and replay export prove what happened before approvals | Pair every sensitive tool call with the viewer URL so reviewers can stop or resume confidently |
 
 ## Minimal integration path
 1. Install `steel-sdk`, `anthropic`, and `dotenv` or `python-dotenv`, then load `STEEL_API_KEY`, `ANTHROPIC_API_KEY`, and `TASK` from `.env` just like the docs quickstarts.
@@ -70,7 +70,7 @@ console.log(`Live viewer: ${session.sessionViewerUrl}`);
 
 const tools = [
   {
-    type: "computer_20250124",
+    type: "computer_20251124",
     name: "computer",
     display_width_px: 1280,
     display_height_px: 768,
@@ -78,23 +78,54 @@ const tools = [
   },
 ];
 
+// Claude and Steel use different action vocabularies, so translate before calling the Computer API.
+// The canonical full starter is `steel forge claude-computer-use-ts` (docs.steel.dev/cookbook/claude-computer-use).
+const KEY_MAP: Record<string, string> = {
+  ctrl: "Control", alt: "Alt", shift: "Shift", meta: "Meta",
+  esc: "Escape", up: "ArrowUp", down: "ArrowDown", left: "ArrowLeft", right: "ArrowRight",
+};
+const normalizeKey = (key: string) => KEY_MAP[key.toLowerCase()] ?? key;
+
+function buildSteelAction(input: any) {
+  switch (input.action) {
+    case "left_click":
+    case "right_click":
+    case "middle_click":
+    case "double_click":
+    case "triple_click": {
+      // Steel collapses every click variant into click_mouse with button + numClicks.
+      const numClicks = /triple/.test(input.action) ? 3 : /double/.test(input.action) ? 2 : 1;
+      const button = /right/.test(input.action) ? "right" : /middle/.test(input.action) ? "middle" : "left";
+      return { action: "click_mouse", button, numClicks, coordinates: input.coordinate, screenshot: true };
+    }
+    case "type":
+      return { action: "type_text", text: input.text, screenshot: true };
+    case "key":
+    case "hold_key":
+      return { action: "press_key", text: normalizeKey(input.text), screenshot: true };
+    case "scroll":
+      // Steel takes a pixel delta; Claude sends a unit count, so scale it.
+      return { action: "scroll", coordinates: input.coordinate, delta_y: (input.scroll_amount ?? 1) * 100, screenshot: true };
+    case "screenshot":
+      return { action: "take_screenshot" };
+    default:
+      throw new Error(`Unhandled Computer Use action: ${input.action}`);
+  }
+}
+
 const response = await anthropic.beta.messages.create({
-  model: "claude-sonnet-4-5",
+  model: "claude-sonnet-4-6",
   messages: [{ role: "user", content: process.env.TASK! }],
   tools,
-  betas: ["computer-use-2025-01-24"],
+  betas: ["computer-use-2025-11-24"],
 });
 
 for (const block of response.content) {
   if (block.type !== "tool_use") continue;
-  const screenshot = await steel.sessions.computer(session.id, {
-    action: block.input.action,
-    ...block.input,
-    screenshot: true,
-  });
+  const screenshot = await steel.sessions.computer(session.id, buildSteelAction(block.input));
 
   await anthropic.beta.messages.create({
-    model: "claude-sonnet-4-5",
+    model: "claude-sonnet-4-6",
     messages: [
       { role: "assistant", content: [block] },
       {
@@ -141,13 +172,41 @@ print(f"Live viewer: {session.session_viewer_url}")
 
 tools = [
     {
-        "type": "computer_20250124",
+        "type": "computer_20251124",
         "name": "computer",
         "display_width_px": 1280,
         "display_height_px": 768,
         "display_number": 1,
     }
 ]
+
+# Claude and Steel use different action vocabularies, so translate before calling the Computer API.
+# The canonical full starter is `steel forge claude-computer-use-py` (docs.steel.dev/cookbook/claude-computer-use).
+KEY_MAP = {
+    "ctrl": "Control", "alt": "Alt", "shift": "Shift", "meta": "Meta",
+    "esc": "Escape", "up": "ArrowUp", "down": "ArrowDown", "left": "ArrowLeft", "right": "ArrowRight",
+}
+
+def normalize_key(key: str) -> str:
+    return KEY_MAP.get(key.lower(), key)
+
+def build_steel_action(block_input: dict) -> dict:
+    action = block_input["action"]
+    if action in ("left_click", "right_click", "middle_click", "double_click", "triple_click"):
+        # Steel collapses every click variant into click_mouse with button + numClicks.
+        num_clicks = 3 if "triple" in action else 2 if "double" in action else 1
+        button = "right" if "right" in action else "middle" if "middle" in action else "left"
+        return {"action": "click_mouse", "button": button, "numClicks": num_clicks, "coordinates": block_input.get("coordinate"), "screenshot": True}
+    if action == "type":
+        return {"action": "type_text", "text": block_input["text"], "screenshot": True}
+    if action in ("key", "hold_key"):
+        return {"action": "press_key", "text": normalize_key(block_input["text"]), "screenshot": True}
+    if action == "scroll":
+        # Steel takes a pixel delta; Claude sends a unit count, so scale it.
+        return {"action": "scroll", "coordinates": block_input.get("coordinate"), "delta_y": block_input.get("scroll_amount", 1) * 100, "screenshot": True}
+    if action == "screenshot":
+        return {"action": "take_screenshot"}
+    raise ValueError(f"Unhandled Computer Use action: {action}")
 
 messages = [
     {"role": "user", "content": BROWSER_SYSTEM_PROMPT},
@@ -156,10 +215,10 @@ messages = [
 
 while True:
     response = anthropic.beta.messages.create(
-        model="claude-sonnet-4-5",
+        model="claude-sonnet-4-6",
         messages=messages,
         tools=tools,
-        betas=["computer-use-2025-01-24"],
+        betas=["computer-use-2025-11-24"],
     )
 
     took_action = False
@@ -169,7 +228,7 @@ while True:
             continue
 
         took_action = True
-        resp = steel.sessions.computer(session.id, {**block.input, "screenshot": True})
+        resp = steel.sessions.computer(session.id, build_steel_action(block.input))
         messages.extend(
             [
                 {"role": "assistant", "content": [block]},
@@ -200,13 +259,15 @@ while True:
 steel.sessions.release(session.id)
 ```
 
+Anthropic ships a new computer-use tool version per model family — confirm the tool, beta, and model pairing at Anthropic's computer-use docs before swapping models. The viewport above (1280x768, ~0.98 MP) stays safely under the resolution limits for both `computer_20251124` and earlier tool versions.
+
 ## Pair Computer Use with Steel observability
 | Signal | Steel hook | Why it matters |
 | --- | --- | --- |
 | Live viewer | `session.sessionViewerUrl` | Let reviewers watch the run or stop it mid flight without SSH |
 | Replay evidence | Same viewer URL after release plus downloadable MP4/HLS | Share proof when Claude says it completed a task |
-| Agent logs | `steel.sessions.logs.list(session.id)` | Store click and DOM logs beside Anthropic transcripts |
-| CAPTCHA status | `steel.sessions.captchas.status(session.id)` | Pause Claude until Steel clears the challenge, then resume |
+| Agent traces | `GET /v1/sessions/{id}/agent-traces` (with `steel-api-key` header) | Store the browser-activity timeline (click, input, navigate, scroll, drag, error events) beside Anthropic transcripts |
+| CAPTCHA status | `steel.sessions.captchas.status(session.id)` | Poll `captchas.status()`, then call `captchas.solve(sessionId)` (or enable `solveCaptcha` at create) to clear the challenge before resuming Claude |
 | Session health | `steel.sessions.release(session.id)` metrics + `sessions.retrieve` status | Catch orphaned sessions before they burn your plan caps |
 
 ## Fit and trade-offs
@@ -218,13 +279,13 @@ steel.sessions.release(session.id)
 **Not yet ideal when**
 - You need desktop apps or offline contexts—Steel is Chrome in the cloud only.
 - Runs exceed Steel's 24 hour session ceiling or concurrency budget for your plan tier without Enterprise increases.
-- Your Anthropic org does not yet have `computer-use-2025-01-24` access; Steel cannot grant that beta.
+- Your Anthropic org does not yet have `computer-use-2025-11-24` access; Steel cannot grant that beta.
 
 ## Go-live checklist
 - `.env` checked into your secrets manager with valid Steel and Anthropic keys plus a default `TASK`.
 - Logging includes Steel session ID, viewer URL, Anthropic response ID, and whether `sessions.release` succeeded.
 - Dimensions, proxy settings, and CAPTCHA helpers aligned with your site list before letting agents loose.
 - Manual reviewers know they can open the Steel viewer URL to approve, pause, or resume sensitive actions.
-- Both TypeScript and Python quickstarts from `docs.steel.dev/integrations/claude-computer-use` run end to end so future edits stay grounded.
+- `docs.steel.dev/integrations/claude-computer-use` covers setup and the connection model; the full TypeScript and Python starters at `docs.steel.dev/cookbook/claude-computer-use` run end to end so future edits stay grounded.
 
 Next step: run one Claude Computer Use task through a Steel session, review the replay, then wire CAPTCHA helpers before scaling the queue. Humans use Chrome. Agents use Steel.

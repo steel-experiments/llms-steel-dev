@@ -26,7 +26,7 @@ tags: [steel-cli, browser-automation, implementation-guide]
 immutable: false
 ---
 ## Short answer
-Steel CLI replaces the hand-rolled scripts that slow [browser automation](@/glossary/browser-automation.md) down. It boots a named session in under a second on [Steel Cloud](@/glossary/steel-cloud.md), keeps that session permissioned, and forwards every familiar `agent-browser` command through one terminal contract, so you spend time finishing the workflow instead of stitching orchestration code.
+Steel CLI replaces the hand-rolled scripts that slow [browser automation](@/glossary/browser-automation.md) down. It boots a named session in about a second on [Steel Cloud](@/glossary/steel-cloud.md), keeps that session permissioned, and forwards every familiar `agent-browser` command through one terminal contract, so you spend time finishing the workflow instead of stitching orchestration code.
 
 If you already have Playwright or `agent-browser` muscle memory, the CLI adds the missing lifecycle: start, live-view, CAPTCHA solve, artifact capture, and stop, all behind `steel browser <command>`. Run it locally, against your own Steel Browser deployment, or in the managed cloud by flipping a single flag.
 
@@ -45,11 +45,12 @@ The CLI already knows how to call Steel's session API, sanitize live-view URLs, 
 ## Implementation path
 1. **Install and log in**
    ```bash
-   npm i -g @steel-dev/cli
+   curl -LsSf https://setup.steel.dev | sh
    steel login
    ```
+   (If you previously installed via npm, `npm update -g @steel-dev/cli` still works and migrates you to the native binary.)
 2. **Pick the right endpoint**
-   - Default Cloud: do nothing. Steel Cloud sessions start in under 1 second and inherit managed stealth.
+   - Default Cloud: do nothing. Steel Cloud sessions start in under one second on average (per Steel's own benchmarks); pass `--stealth` to enable the advanced stealth preset Cloud supports (Local only offers limited stealth).
    - Local dev: `steel dev install && steel dev start`, then add `--local` when starting sessions.
    - Self-hosted: pass `--api-url https://steel.your-domain.dev/v1` so the CLI talks to your Steel Browser cluster.
 3. **Start a named session**
@@ -72,7 +73,7 @@ The CLI already knows how to call Steel's session API, sanitize live-view URLs, 
    steel browser stop --session "$SESSION"
    ```
 6. **Automate the ceremony for agents**
-   - Install the `steel-browser` skill: `npx skills add steel-dev/cli --skill steel-browser`.
+   - Install the `steel-browser` skill: `npx skills add steel-dev/skills --skill steel-browser`.
    - Restart your agent client so it discovers the skill manifest and enforces the same contract automatically.
 
 ## Patterns that make runs faster
@@ -81,7 +82,7 @@ The CLI already knows how to call Steel's session API, sanitize live-view URLs, 
 | Need parity across clouds, self-hosting, and local | Use `--api-url`, `--local`, or environment overrides | One script handles every deployment target without copy-pasted config |
 | Agent loops keep flaking mid-action | Force named sessions plus `snapshot -i` before actions via the skill | Agents stop hallucinating selectors and you get visual evidence per step |
 | Human review blocks progress | Use `steel browser live` during the run, then share the `connect_url` for approvals | Reviewers can jump in without stopping the automation |
-| You keep rebuilding starter repos | `steel forge playwright --name intake-bot` and `steel run browser-use --task ...` scaffold the workflow in minutes |
+| You keep rebuilding starter repos | `steel forge playwright --name intake-bot` and `steel forge browser-use --name research-bot` scaffold the workflow in minutes |
 | Credential walls slow tests | Pair CLI sessions with the Credentials API (when you move to Cloud) so secrets never live in prompts |
 
 ## Works for X, not yet for Y
@@ -95,6 +96,6 @@ The CLI already knows how to call Steel's session API, sanitize live-view URLs, 
 ## Next steps
 - Skim the [Steel CLI docs](https://docs.steel.dev/overview/steel-cli) for every command and flag.
 - Install the `steel-browser` skill and force your agent environment to restart so it respects the lifecycle contract.
-- Ship one workflow this week: run `steel browser start`, capture evidence with `snapshot -i`, stop the session, and compare how much glue code disappeared.
+- Ship one workflow this week: run `steel browser start`, capture evidence with `steel screenshot`, stop the session, and compare how much glue code disappeared.
 
 Humans use Chrome. Agents use Steel.

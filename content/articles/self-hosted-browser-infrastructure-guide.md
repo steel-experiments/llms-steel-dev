@@ -26,20 +26,20 @@ tags: [decision-guide, self-hosting, steel]
 immutable: false
 ---
 ## Short answer
-Self-hosting Steel Browser is worth the operational cost only when you can name a person who owns Docker, Chrome patching, SSL, and alerting, and when your workflow stays under a handful of concurrent sessions. The [Docker self-hosting guide](https://docs.steel.dev/overview/self-hosting/docker) expects 4 GB of RAM, 10 GB of disk, and open ports 3000/5173/9223 plus a persisted `.cache` volume, so treat it like any other stateful service you must secure and back up.
+Self-hosting Steel Browser is worth the operational cost only when you can name a person who owns Docker, Chrome patching, SSL, and alerting, and when your workflow fits a single concurrent session. The [Docker self-hosting guide](https://docs.steel.dev/overview/self-hosting/docker) expects 4 GB of RAM, 10 GB of disk, and open ports 3000/5173/9223 plus a persisted `.cache` volume, so treat it like any other stateful service you must secure and back up.
 
-The moment you need 5+ concurrent jobs, managed stealth, CAPTCHA solving, credentials, files, or region flags, Steel Cloud turns out cheaper than spending nights debugging your own fleet. The official [Steel Local vs Steel Cloud table](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud) caps self-hosted concurrency at roughly one session and leaves out managed proxies, Credentials API, Files API, and multi-region support, so default to Cloud unless compliance or customization forces you to own the stack.
+The moment you need more than one concurrent session (Steel Local is documented at a concurrency of 1), managed stealth, CAPTCHA solving, credentials, files, or region flags, Steel Cloud turns out cheaper than spending nights debugging your own fleet. The official [Steel Local vs Steel Cloud table](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud) caps self-hosted concurrency at one session and leaves out managed proxies, Credentials API, Files API, and multi-region support, so default to Cloud unless compliance or customization forces you to own the stack.
 
 | If this describes you | Self-host the open-source Steel Browser? | Why |
 | --- | --- | --- |
-| Need strict VPC or on-prem residency, <3 concurrent sessions, and can run Docker | **Yes** | Docker Compose or the single-image run command keep everything on your metal while exposing the Sessions API on port 3000 and the UI on 5173. |
-| Need managed proxies, CAPTCHA solving, Credentials or Files APIs, or >5 sessions | **No** | Those surfaces only exist in Steel Cloud today, along with 100+ session concurrency and multi-region flags. |
+| Need strict VPC or on-prem residency, a single concurrent session (Steel Local is documented at concurrency 1), and can run Docker | **Yes** | Docker Compose or the single-image run command keep everything on your metal while exposing the Sessions API on port 3000 and the UI on 5173. |
+| Need managed proxies, CAPTCHA solving, Credentials or Files APIs, or more than one concurrent session | **No** | Those surfaces only exist in Steel Cloud today, along with 100+ session concurrency and multi-region flags. |
 | Want to patch Chrome builds or preload custom extensions | **Yes** | Self-hosted Steel lets you rebuild the image, change the Chrome version, and drop extensions into `api/src/extensions/` before boot. |
 | Need instant observability, replay retention, and steady on-call coverage | **No** | Steel Cloud streams live view and replays automatically, while self-hosting means wiring health checks, storage, and alerting yourself. |
 
 ## What self-hosting actually entails
 ### Baseline requirements
-- Reserve at least 4 GB RAM, 10 GB storage, and expose ports 3000 (API), 5173 (UI), and 9223 (Chrome debugging) per the Docker quick start. Persist the `.cache` directory to reuse Chrome profiles or extensions between restarts. ([Docker guide](https://docs.steel.dev/overview/self-hosting/docker))
+- For docker-compose, reserve at least 4 GB RAM, 10 GB storage, and expose ports 3000 (API), 5173 (UI), and 9223 (Chrome debugging); for the single-image deployment, you only need 3000 (API + UI at /ui) and 9223. Persist the `.cache` directory to reuse Chrome profiles or extensions between restarts. ([Docker guide](https://docs.steel.dev/overview/self-hosting/docker))
 - Budget for Chrome updates: if you need a different build, you must edit the Dockerfile and rebuild the image yourself before redeploying. ([Docker guide](https://docs.steel.dev/overview/self-hosting/docker))
 - Cluster guidance is still TBD; the `clustering` doc is only a placeholder, so horizontal scaling is your responsibility until Steel ships an official recipe. ([Clustering doc](https://docs.steel.dev/overview/self-hosting/clustering))
 
@@ -49,7 +49,7 @@ The moment you need 5+ concurrent jobs, managed stealth, CAPTCHA solving, creden
 | Docker Compose | You want parity with development and separate API/UI containers | `docker compose up -d` launches API + UI, maps ports, and mounts `.cache`, but you must wire TLS and host firewalls yourself. |
 | Single Docker image | You prefer one container | `docker run --rm -it -p 3000:3000 -p 9223:9223 ghcr.io/steel-dev/steel-browser:latest` exposes API + UI inside one image; great for CI or throwaway hosts. |
 | Railway template | You want a managed PaaS but still own the instance | Railway adds automatic HTTPS, metrics, and scaling knobs; health-check `https://<domain>/v1/health` before handing traffic to it. ([Railway guide](https://docs.steel.dev/overview/self-hosting/railway)) |
-| Render | You already run workloads on Render | The Render doc is a link stub only, so treat it like running the Docker image manually on Render rather than expecting a turnkey template. ([Render doc](https://docs.steel.dev/overview/self-hosting/render)) |
+| Render | You already run workloads on Render | The link redirects straight into Render's one-click blueprint for the `steeldev/steel` image (there is no written doc page), so deployment is turnkey — Render auto-generates the service config from the image. Health-check `https://<domain>/v1/health` once it is up. ([Render doc](https://docs.steel.dev/overview/self-hosting/render)) |
 
 After boot, connect the same way you would to [Steel Cloud](@/glossary/steel-cloud.md):
 
@@ -65,11 +65,11 @@ const browser = await chromium.connectOverCDP(session.websocketUrl);
 ## Decision factors to vet before committing
 | Factor | Questions to ask | Evidence |
 | --- | --- | --- |
-| Concurrency ceiling | Can you keep work under one or two simultaneous sessions? | Steel Local is documented as a ~1-session runner; Steel Cloud ships 100+ sessions plus lifecycle controls. ([Steel Local vs Steel Cloud](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud)) |
+| Concurrency ceiling | Can you keep work to a single simultaneous session? | Steel Local is documented as a 1-session runner (concurrency 1); Steel Cloud ships 100+ sessions plus lifecycle controls. ([Steel Local vs Steel Cloud](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud)) |
 | Trust surfaces | Do you need Credentials API, Files API, managed proxies, or CAPTCHA solving? | None of those exist in Steel Browser today, so you'd build or buy substitutes. ([Steel Local vs Steel Cloud](https://docs.steel.dev/overview/self-hosting/steel-local-vs-steel-cloud)) |
 | Cost of ownership | Who patches Docker and tracks Chrome CVEs? | Docker guide spells out manual rebuild steps, `.cache` persistence, and port exposure, which also means you own hardening. |
 | Scaling plan | How will you add hosts or regions later? | There is no published clustering walkthrough yet, so plan your own load balancer, scheduler, and metrics stack. |
-| Observability | How will operators replay failures or see live state? | Self-hosting exposes the UI on 5173 and CDP on 9223, but you still need to record replays, export logs, and enforce retention. |
+| Observability | How will operators replay failures or see live state? | Self-hosting gives you the live UI viewer on 5173, but managed replay retention, log export, and alerting are yours to wire up. |
 
 ## Operating checklist for self-hosted Steel
 1. **Pin the image and config.** Keep explicit image tags and compose files in git so you can revert quickly after a Chrome or Node upgrade. Persist `.cache` and back it up when profiles matter.
